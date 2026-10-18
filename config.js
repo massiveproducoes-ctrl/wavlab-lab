@@ -35,6 +35,30 @@ window.WAVLAB = {
     PACK_WA_TEXT_FREE: 'Salve! Quero o pack *{pack}* (prod. {produtor}) do Wav Lab.',
     PACK_WA_TEXT_ASK: 'Salve! Queria saber o preço do pack *{pack}* (prod. {produtor}) do Wav Lab.',
 
+    // Secao "Servicos": tipos que ela mostra, periodos oferecidos no pedido de horario
+    SERVICE_TYPES: ['service', 'rental'],
+    SERVICE_PERIODS: ['Manhã', 'Tarde', 'Noite', 'Qualquer horário'],
+
+    // CONDICOES DOS SERVICOS - TEXTO PROVISORIO (finalizar com os socios).
+    // Aparecem no pedido de horario e sao gravadas no pedido (terms_snapshot).
+    SERVICE_TERMS: [
+        'O horário pedido depende da confirmação do estúdio.',
+        'Valores finais, forma de pagamento e detalhes são combinados pelo WhatsApp.'
+    ],
+
+    // TERMO DE RESPONSABILIDADE DO ALUGUEL - TEXTO PROVISORIO (a revisao final sera feita por advogado).
+    // O cliente precisa marcar que leu e aceitou; o texto exato abaixo e gravado no pedido (terms_snapshot).
+    RENTAL_TERMS: [
+        'Recebo o equipamento em bom estado e sou responsável por ele da retirada até a devolução.',
+        'Em caso de dano, perda ou roubo durante o período do aluguel, arco com o custo de reparo ou reposição.',
+        'Devolvo o equipamento na data combinada e nas mesmas condições em que o recebi.',
+        'Atrasos na devolução podem gerar a cobrança de novas diárias.'
+    ],
+    RENTAL_ACCEPT_LABEL: 'Li e aceito o termo de responsabilidade',
+
+    // Primeira linha da mensagem do WhatsApp do pedido de horario ({servico} vira o nome)
+    SERVICE_WA_TEXT: 'Salve! Quero solicitar *{servico}* no Wav Lab.',
+
     // Numero que recebe todos os leads (so digitos, com 55 + DDD)
     WHATSAPP: '5591985447000',
 

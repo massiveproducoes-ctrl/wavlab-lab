@@ -200,7 +200,7 @@
         if (p.type === 'beat') return 'a partir de ' + brl(minLicense);
         if (p.price == null) return 'sob consulta';
         if (Number(p.price) === 0) return 'Grátis';
-        return brl(p.price) + (p.type === 'rental' ? '/dia' : '');
+        return (p.details && p.details.price_from ? 'a partir de ' : '') + brl(p.price) + (p.type === 'rental' ? '/dia' : '');
     }
 
     function renderProducts() {
@@ -313,6 +313,8 @@
             var extra = [];
             if (o.desired_date) extra.push('Data desejada: ' + fmtDateOnly(o.desired_date));
             if (o.notes) extra.push(o.notes);
+            var wa = /^\d{10,15}$/.test(o.customer_whatsapp || '') ? o.customer_whatsapp : '';
+            var who = [o.customer_name, wa ? fmtPhone(wa) : ''].filter(Boolean).join(' · ');
             var prod = orderProduct(o);
             var action = '';
             if (prod && grp === 'service') action = '<button class="btn small" data-act="order-delivery" data-id="' + o.id + '"><i class="fa-regular fa-calendar-check"></i> Confirmar data</button>';
@@ -326,11 +328,13 @@
                             (optTxt ? '<span>' + esc(optTxt) + '</span>' : '') +
                             (o.quantity > 1 ? '<span>×' + esc(o.quantity) + '</span>' : '') +
                             '<span class="order-price">' + (o.price != null ? brl(o.price) : '') + '</span><span>' + esc(when) + '</span></div>' +
+                        (who ? '<div class="order-notes"><b>Cliente:</b> ' + esc(who) + '</div>' : '') +
                         (extra.length ? '<div class="order-notes">' + extra.map(esc).join(' · ') + '</div>' : '') +
                     '</div>' +
                     '<select data-order-status="' + o.id + '">' + opts + '</select>' +
                 '</div>' +
-                (action ? '<div class="item-actions">' + action + '</div>' : '') +
+                ((action || wa) ? '<div class="item-actions">' + action +
+                    (wa ? '<a class="btn small" href="https://wa.me/' + wa + '" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>' : '') + '</div>' : '') +
             '</div>';
         }).join('');
     }
@@ -806,6 +810,7 @@
         $('pr_bpm').value = d.bpm || '';
         $('pr_key').value = d.key || '';
         $('pr_duration').value = d.duration || '';
+        $('pr_price_from').checked = !!d.price_from;
         $('pr_delivery_url').value = f.delivery_url || '';
         $('pr_delivery_note').value = f.delivery_note || '';
         $('bf_published').checked = b ? !!b.published : false;
@@ -936,7 +941,10 @@
             put('bpm', $('pr_bpm').value.trim());
             put('key', $('pr_key').value.trim());
         }
-        if (grp === 'service') put('duration', $('pr_duration').value.trim());
+        if (grp === 'service') {
+            put('duration', $('pr_duration').value.trim());
+            if ($('pr_price_from').checked) d.price_from = true; else delete d.price_from;
+        }
         return d;
     }
 

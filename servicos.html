@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serviços | Wav Lab</title>
+    <meta name="description" content="Gravação, mix, master e aluguel de instrumentos no estúdio do Wav Lab. Peça um horário e feche pelo WhatsApp.">
+    <meta name="theme-color" content="#0b0b0d">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="servicos.css">
+</head>
+<body>
+    <div class="lab-banner">LAB · ambiente de testes</div>
+
+    <header>
+        <div class="brand">
+            <div class="brand-logo">
+                <svg viewBox="0 0 24 24"><path d="M3 18v-6h2v6H3zm4 2V4h2v16H7zm4-4V8h2v8h-2zm4 2v-10h2v10h-2zm4-4v-4h2v4h-2z"/></svg>
+            </div>
+            <h1 class="brand-name">WAV.<span>LAB</span></h1>
+        </div>
+        <span class="beta-badge">BETA</span>
+    </header>
+
+    <nav class="site-nav" aria-label="Seções do site">
+        <a href="index.html">Beats</a>
+        <a href="packs.html" id="navPacks" hidden>Packs</a>
+        <a href="servicos.html" id="navServicos" data-always="1" class="active" aria-current="page">Serviços</a>
+    </nav>
+
+    <main>
+        <!-- LISTA DE SERVICOS -->
+        <div id="svListView">
+            <section class="hero">
+                <h2 class="hero-title">Serviços de estúdio.</h2>
+                <p class="hero-sub">Gravação, mix, master e aluguel de instrumentos. Peça um horário e feche pelo WhatsApp.</p>
+            </section>
+            <div class="sv-list" id="svList"></div>
+        </div>
+
+        <!-- PAGINA DE UM SERVICO (?servico=slug) -->
+        <div id="svDetailView" hidden></div>
+    </main>
+
+    <footer id="siteFooter">
+        <p>&copy; 2026 Wav Lab. Todos os direitos reservados.</p>
+    </footer>
+
+    <!-- Modal: solicitar horario / aluguel -->
+    <div id="svModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title" id="svModalTitle">Solicitar horário</h3>
+                    <p class="modal-sub" id="svModalSub"></p>
+                </div>
+                <button class="close-modal" data-close-sv aria-label="Fechar">&times;</button>
+            </div>
+
+            <form id="svForm" novalidate autocomplete="off">
+                <div class="wl-field">
+                    <label for="svName">Seu nome</label>
+                    <input id="svName" type="text" maxlength="60" autocomplete="name" placeholder="Como te chamamos?">
+                </div>
+                <div class="wl-field">
+                    <label for="svPhone">WhatsApp com DDD</label>
+                    <input id="svPhone" type="tel" inputmode="tel" maxlength="20" autocomplete="tel" placeholder="(91) 90000-0000">
+                </div>
+                <div class="sv-row">
+                    <div class="wl-field">
+                        <label for="svDate" id="svDateLabel">Data desejada</label>
+                        <input id="svDate" type="date">
+                    </div>
+                    <div class="wl-field" id="svDate2Field" hidden>
+                        <label for="svDate2">Devolução</label>
+                        <input id="svDate2" type="date">
+                    </div>
+                </div>
+                <div class="wl-field">
+                    <label for="svPeriod" id="svPeriodLabel">Período desejado</label>
+                    <select id="svPeriod"></select>
+                </div>
+                <div class="wl-field">
+                    <label for="svNotes">Observações <span class="sv-opt">(opcional)</span></label>
+                    <textarea id="svNotes" rows="3" maxlength="500" placeholder="Conte o que você precisa."></textarea>
+                </div>
+
+                <div class="sv-terms" id="svTerms" hidden>
+                    <h4 class="section-label" id="svTermsTitle">Termo de responsabilidade</h4>
+                    <ul class="license-notes" id="svTermsList"></ul>
+                </div>
+                <label class="sv-accept" id="svAcceptWrap" hidden>
+                    <input type="checkbox" id="svAccept">
+                    <span id="svAcceptLabel">Li e aceito o termo de responsabilidade</span>
+                </label>
+
+                <div class="wl-hp" aria-hidden="true"><label>Site <input id="svHp" type="text" tabindex="-1" autocomplete="off"></label></div>
+                <div class="wl-status" id="svStatus" role="status"></div>
+                <button type="submit" class="soon-btn" id="svSend">Enviar pedido</button>
+            </form>
+
+            <div class="wl-done" id="svDone" hidden>
+                <i class="fa-solid fa-circle-check" id="svDoneIcon" aria-hidden="true"></i>
+                <p id="svDoneText"></p>
+                <a class="checkout-btn" id="svWaBtn" href="#" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Abrir WhatsApp</a>
+                <button type="button" class="link-btn sv-close" data-close-sv>Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+    <script src="config.js"></script>
+    <script src="site.js"></script>
+    <script src="nav.js"></script>
+    <script src="servicos.js"></script>
+</body>
+</html>

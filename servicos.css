@@ -1,0 +1,53 @@
+/* Wav Lab - secao de servicos (complementa style.css). Campos do modal reaproveitam .wl-field do style.css */
+
+.sv-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; align-items: start; }
+.sv-list > .state-box { grid-column: 1 / -1; }
+
+.sv-card {
+    background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; overflow: hidden;
+    display: flex; flex-direction: column;
+}
+.sv-cover { width: 100%; aspect-ratio: 16 / 9; font-size: 34px; }
+.sv-body { padding: 16px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; min-width: 0; }
+.sv-title { font-family: var(--font-ui); font-size: 19px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; overflow-wrap: anywhere; }
+.sv-title a { color: inherit; text-decoration: none; }
+.sv-title a:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--accent); }
+.sv-meta { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; line-height: 1.4; }
+.sv-meta i { color: var(--accent); font-size: 13px; }
+.sv-desc { font-size: 14px; color: #d4d4d8; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }
+.sv-inc { list-style: none; width: 100%; display: grid; gap: 4px; }
+.sv-inc li { font-size: 13.5px; color: #d4d4d8; line-height: 1.4; padding-left: 18px; position: relative; overflow-wrap: anywhere; }
+.sv-inc li::before { content: '\2713'; position: absolute; left: 0; color: var(--accent); font-weight: 700; }
+.sv-price { font-family: var(--font-mono); font-size: 18px; font-weight: 500; letter-spacing: -0.02em; margin-top: 2px; }
+.sv-card .checkout-btn { border: none; cursor: pointer; margin-top: 4px; }
+
+/* pagina de um servico */
+.sv-back { display: inline-flex; align-items: center; gap: 8px; margin: 4px 0 14px; color: var(--text-muted); text-decoration: none; font-size: 13px; font-weight: 600; }
+.sv-back:hover { color: #fff; }
+.sv-detail { max-width: 640px; }
+.sv-detail .sv-title { font-size: clamp(26px, 6vw, 36px); line-height: 1.05; letter-spacing: -0.03em; }
+.sv-detail .sv-price { font-size: 24px; }
+.sv-detail .link-btn { margin-top: 2px; }
+
+/* modal */
+.modal-content .wl-field select,
+.modal-content .wl-field textarea {
+    width: 100%; background: #18181b; color: #fff; border: 1px solid var(--border-color); border-radius: 12px;
+    padding: 13px 14px; font-size: 16px; font-family: var(--font-ui); outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.modal-content .wl-field textarea { resize: vertical; min-height: 84px; }
+.modal-content .wl-field select:focus,
+.modal-content .wl-field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.modal-content .wl-field input[type=date] { color-scheme: dark; }
+.sv-row { display: grid; grid-template-columns: 1fr; gap: 0 10px; }
+.sv-row:has(#svDate2Field:not([hidden])) { grid-template-columns: 1fr 1fr; }
+.sv-opt { font-weight: 400; color: var(--text-muted); }
+
+.sv-terms { background: #18181b; border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; margin: 2px 0 12px; max-height: 190px; overflow-y: auto; }
+.sv-terms .section-label { margin-bottom: 8px; }
+.sv-accept { display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; color: #e4e4e7; margin-bottom: 14px; cursor: pointer; line-height: 1.4; }
+.sv-accept input { width: 20px; height: 20px; accent-color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+#svDone .checkout-btn { margin: 4px 0 6px; }
+#svDone.warn i { color: #fbbf24; }
+.sv-close { margin: 4px auto 0; }
