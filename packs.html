@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Packs | Wav Lab</title>
+    <meta name="description" content="Sample packs, drum kits, loops e presets do Wav Lab. Ouça a demo e feche pelo WhatsApp.">
+    <meta name="theme-color" content="#0b0b0d">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="packs.css">
+</head>
+<body>
+    <div class="lab-banner">LAB · ambiente de testes</div>
+
+    <header>
+        <div class="brand">
+            <div class="brand-logo">
+                <svg viewBox="0 0 24 24"><path d="M3 18v-6h2v6H3zm4 2V4h2v16H7zm4-4V8h2v8h-2zm4 2v-10h2v10h-2zm4-4v-4h2v4h-2z"/></svg>
+            </div>
+            <h1 class="brand-name">WAV.<span>LAB</span></h1>
+        </div>
+        <span class="beta-badge">BETA</span>
+    </header>
+
+    <nav class="site-nav" aria-label="Seções do site">
+        <a href="index.html">Beats</a>
+        <a href="packs.html" id="navPacks" data-always="1" class="active" aria-current="page">Packs</a>
+        <span class="site-nav-soon" aria-disabled="true">Serviços <small>em breve</small></span>
+    </nav>
+
+    <main>
+        <!-- LISTA DE PACKS -->
+        <div id="packsView">
+            <section class="hero">
+                <h2 class="hero-title">Packs com identidade.</h2>
+                <p class="hero-sub">Sample packs, kits e presets. Ouça a demo e feche direto pelo WhatsApp.</p>
+
+                <form class="search" id="searchForm" role="search" autocomplete="off">
+                    <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                    <input type="search" id="searchInput" placeholder="Ex.: trap, 808, drums, vocal" aria-label="Buscar packs" enterkeyhint="search" maxlength="60">
+                    <button type="button" class="search-clear" id="searchClear" aria-label="Limpar busca" hidden>&times;</button>
+                </form>
+            </section>
+
+            <div class="filters" id="typeChips" hidden></div>
+            <div class="toolbar" id="toolbar" hidden><span class="result-count" id="resultCount"></span></div>
+            <div class="beats-list is-grid" id="packsList"></div>
+        </div>
+
+        <!-- PAGINA DE UM PACK (?pack=slug) -->
+        <div id="packView" hidden></div>
+    </main>
+
+    <footer id="siteFooter">
+        <p>&copy; 2026 Wav Lab. Todos os direitos reservados.</p>
+    </footer>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+    <script src="config.js"></script>
+    <script src="site.js"></script>
+    <script src="packs.js"></script>
+</body>
+</html>

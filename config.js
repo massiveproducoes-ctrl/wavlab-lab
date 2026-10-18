@@ -16,6 +16,25 @@ window.WAVLAB = {
         preset: 'Presets', project_file: 'Projetos', guide: 'Guias', service: 'Serviços', rental: 'Aluguel'
     },
 
+    // Secao "Packs": tipos de produto que ela mostra (precisam existir em products.type)
+    PACK_TYPES: ['sample_pack', 'drum_kit', 'loop_kit', 'preset', 'project_file', 'guide'],
+    PRODUCT_TYPES_ONE: {
+        beat: 'Beat', sample_pack: 'Sample pack', drum_kit: 'Drum kit', loop_kit: 'Loop kit',
+        preset: 'Preset', project_file: 'Projeto', guide: 'Guia', service: 'Serviço', rental: 'Aluguel'
+    },
+
+    // TERMOS DE USO DOS PACKS - TEXTO PROVISORIO (finalizar com os socios).
+    // O site mostra na pagina do pack e grava no pedido (terms_snapshot) exatamente o que estiver aqui.
+    PACK_TERMS: [
+        'Royalty-free: você pode usar os sons em músicas próprias, inclusive comerciais.',
+        'Proibido revender, redistribuir ou repassar os sons, isolados ou dentro de outro pack.'
+    ],
+
+    // Mensagens do WhatsApp dos packs ({pack}, {produtor} e {preco} sao trocados pelos valores)
+    PACK_WA_TEXT: 'Salve! Quero comprar o pack *{pack}* (prod. {produtor}) do Wav Lab por *{preco}*. Como faço o Pix?',
+    PACK_WA_TEXT_FREE: 'Salve! Quero o pack *{pack}* (prod. {produtor}) do Wav Lab.',
+    PACK_WA_TEXT_ASK: 'Salve! Queria saber o preço do pack *{pack}* (prod. {produtor}) do Wav Lab.',
+
     // Numero que recebe todos os leads (so digitos, com 55 + DDD)
     WHATSAPP: '5591985447000',
 

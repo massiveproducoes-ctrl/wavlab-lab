@@ -37,6 +37,22 @@ body.modal-open { overflow: hidden; }
 body.player-on { padding-bottom: 84px; }
 button { font-family: inherit; }
 
+/* ---------- Navegacao do topo (Beats | Packs | Servicos) ---------- */
+.site-nav {
+    max-width: 1120px; width: 100%; margin: 0 auto; padding: 6px 16px 0;
+    display: flex; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none;
+}
+.site-nav::-webkit-scrollbar { display: none; }
+.site-nav a, .site-nav-soon {
+    flex: 0 0 auto; padding: 10px 14px 9px; font-size: 13.5px; font-weight: 600; white-space: nowrap;
+    color: var(--text-muted); text-decoration: none; border-bottom: 2px solid transparent;
+}
+.site-nav a:hover { color: #fff; }
+.site-nav a.active { color: #fff; border-bottom-color: var(--accent); }
+.site-nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; }
+.site-nav-soon { cursor: default; opacity: 0.7; }
+.site-nav-soon small { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-left: 4px; color: var(--accent); }
+
 /* ---------- Header ---------- */
 header {
     background-color: rgba(11, 11, 13, 0.9);

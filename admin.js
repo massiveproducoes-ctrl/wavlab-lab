@@ -803,6 +803,8 @@
         $('pr_count').value = d.file_count || '';
         $('pr_size').value = d.total_size || '';
         $('pr_formats').value = d.formats || '';
+        $('pr_bpm').value = d.bpm || '';
+        $('pr_key').value = d.key || '';
         $('pr_duration').value = d.duration || '';
         $('pr_delivery_url').value = f.delivery_url || '';
         $('pr_delivery_note').value = f.delivery_note || '';
@@ -931,6 +933,8 @@
             put('file_count', isNaN(n) || n < 1 ? null : n);
             put('total_size', $('pr_size').value.trim());
             put('formats', $('pr_formats').value.trim());
+            put('bpm', $('pr_bpm').value.trim());
+            put('key', $('pr_key').value.trim());
         }
         if (grp === 'service') put('duration', $('pr_duration').value.trim());
         return d;
