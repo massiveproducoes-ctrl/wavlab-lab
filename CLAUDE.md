@@ -1,9 +1,24 @@
+# Wav Lab (LAB: ambiente de testes)
+
+**Este repositório é o LAB**, a cópia de testes do site Wav Lab. Não é a produção.
+
+## Regras do LAB (têm prioridade sobre o resto deste arquivo)
+
+1. **O Supabase daqui é o de staging** (`rnqhytemdymjkpgtokvk`). O `config.js` do lab aponta só para ele.
+2. **NUNCA use a URL ou as chaves da produção (`bgthmjchmssorcrirazs`) neste repositório.** Se aparecer esse código em qualquer arquivo, remova e avise o usuário. Ao copiar código do `wavlab` para cá, nunca copie o `config.js` junto.
+3. **Os grants do lab são mais restritos que os da produção, de propósito.** Na produção, `anon` tem todos os privilégios nas tabelas (o RLS é a única barreira). No lab, `anon` só lê `genres`, `producers` e `beats` e só insere em `orders`, `events` e `waitlist`. Não "corrija" isso para igualar a produção.
+4. **Features novas nascem aqui** e só vão para o `wavlab` (produção) depois de aprovadas pelo usuário. Ao portar, leve só o código da feature, não a faixa "LAB", os `noindex`, o `config.js` nem esta documentação.
+5. Todas as páginas têm a faixa fixa "LAB · ambiente de testes" (`.lab-banner`, no `style.css`) e `<meta name="robots" content="noindex, nofollow">`. Páginas novas precisam dos dois.
+6. A pasta `supabase/` (`schema.sql` e `conferencia.sql`) e qualquer `.csv` ficam no `.gitignore` e nunca vão para o GitHub. As regras de SQL abaixo (regra 4 da lista geral) continuam valendo: o usuário cola o SQL no Supabase; não rode SQL nem conecte ao banco.
+
+---
+
 # Wav Lab
 
 Loja de beats (instrumentais) com vitrine pública e painel admin. Site estático, sem build e sem framework: HTML + CSS + JavaScript puro (ES5 na vitrine), com Supabase como banco, login e storage. Publicado no GitHub Pages a partir da branch `main`.
 
-- Repositório: `massiveproducoes-ctrl/wavlab`
-- Site: https://massiveproducoes-ctrl.github.io/wavlab/
+- Repositório do lab: `massiveproducoes-ctrl/wavlab-lab` (a produção é `massiveproducoes-ctrl/wavlab`)
+- Site do lab: https://massiveproducoes-ctrl.github.io/wavlab-lab/
 - Idioma do projeto: português do Brasil (textos da tela, comentários e mensagens de commit).
 
 ## Regras (valem sempre)
@@ -11,7 +26,7 @@ Loja de beats (instrumentais) com vitrine pública e painel admin. Site estátic
 1. **Tudo configurável fica em `config.js`.** Preços, licenças e termos, WhatsApp, textos do topo, tempo do preview, URL e chave do Supabase. Não escreva esses valores direto em `app.js`, `admin.js` ou nos HTMLs. Se aparecer um valor novo que o dono pode querer mudar, crie a chave em `config.js` e leia de lá.
 2. **Nunca coloque `secret key` nem `service_role` no código.** Só a chave pública (`anon`) pode ficar em `config.js`. Se o usuário colar uma chave, confira o `role` antes de gravar. Qualquer chave que não seja `anon` não entra em arquivo nenhum.
 3. **Sempre teste antes de publicar.** Veja "Como testar" abaixo. Se não deu para testar alguma parte, diga qual antes de pedir autorização para publicar.
-4. **SQL de banco vai em arquivo separado, fora do repositório.** O usuário cola o SQL no Supabase por conta própria. Salve o arquivo (ex.: `migracao_03.sql`) em `~\Documents\wavlab-sql` (`C:\Users\pedro\Documents\wavlab-sql`), fora do repositório, nunca nesta pasta, e nunca o inclua em commit. Não rode SQL, não tente se conectar ao banco e não use chave de administrador.
+4. **SQL de banco: no lab fica em `supabase/` (ignorado pelo git); as migrações antigas estão fora do repositório.** O usuário cola o SQL no Supabase por conta própria. Salve o arquivo (ex.: `migracao_03.sql`) em `~\Documents\wavlab-sql` (`C:\Users\pedro\Documents\wavlab-sql`), fora do repositório, nunca nesta pasta, e nunca o inclua em commit. Não rode SQL, não tente se conectar ao banco e não use chave de administrador.
 5. **Commits sempre com o e-mail noreply do GitHub já configurado neste repositório** (`git config user.email` dentro desta pasta). Não use o e-mail pessoal, não mude `user.email` (nem global nem local) e não use `--author` com outro e-mail. Se `git config user.email` mostrar algo que não termine em `@users.noreply.github.com`, pare e pergunte.
 6. **Publicar só quando o usuário pedir.** "Publicar" é `git commit` + `git push origin main`. Nunca faça commit ou push por iniciativa própria. Termine o trabalho, mostre o `git status` e o `git diff --stat`, e pergunte se pode publicar.
 

@@ -1,10 +1,11 @@
 // @ts-nocheck
 // Wav Lab - configuracao unica. Vitrine e admin leem daqui.
+// LAB: aponta para o Supabase de TESTES (rnqhytemdymjkpgtokvk). Nunca usar a URL/chave da producao aqui.
 // A chave abaixo e PUBLICA (anon) e pode ficar no site.
 // NUNCA coloque aqui a "secret key" nem a "service_role".
 window.WAVLAB = {
-    SUPABASE_URL: 'https://bgthmjchmssorcrirazs.supabase.co',
-    SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJndGhtamNobXNzb3JjcmlyYXpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5MDEwNDMsImV4cCI6MjEwNzQ3NzA0M30.Kd5_c-qWdwLED8z7nDQ6LzUPPHux6FSYBL4sXZ3d7cg',
+    SUPABASE_URL: 'https://rnqhytemdymjkpgtokvk.supabase.co',
+    SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucWh5dGVtZHltamtwZ3Rva3ZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNTMxNTYsImV4cCI6MjEwNzgyOTE1Nn0.NYMvBoKiPtqnY5gzKGyFnZJDbJxs8_5RDsJLx8Yi0aQ',
 
     // Numero que recebe todos os leads (so digitos, com 55 + DDD)
     WHATSAPP: '5591985447000',
