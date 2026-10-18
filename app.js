@@ -98,6 +98,28 @@
         if (el && el.tagName === 'IMG' && el.closest && el.closest('.bcover, .mp-cover')) el.style.display = 'none';
     }, true);
 
+    // insignias (titulos) do produtor: so as validas, na ordem do banco. Sem insignia, nada aparece.
+    var BADGE_FIELDS = 'slug,name,description,icon,kind,sort';
+    function badgeList(rows) {
+        return (rows || []).map(function (x) {
+            var b = x && x.badges;
+            return Array.isArray(b) ? b[0] : b;
+        }).filter(function (b) {
+            return b && b.kind === 'titulo' && SLUG_RE.test(b.icon || '') && b.name;
+        }).sort(function (a, c) { return (a.sort == null ? 100 : a.sort) - (c.sort == null ? 100 : c.sort); });
+    }
+
+    function badgeSrc(b) { return ROOT + 'icons/badges/' + b.icon + '.svg'; }
+
+    // so o icone, com dica ao passar o mouse / tocar
+    function badgesHTML(list) {
+        if (!list || !list.length) return '';
+        return '<span class="pbadges">' + list.map(function (b) {
+            var tip = b.name + ' · Wav Lab';
+            return '<img class="pbadge" src="' + esc(badgeSrc(b)) + '" width="14" height="14" alt="' + esc(b.name) + '" title="' + esc(tip) + '">';
+        }).join('') + '</span>';
+    }
+
     function findBeat(id) {
         for (var i = 0; i < BEATS.length; i++) if (BEATS[i].id === id) return BEATS[i];
         return null;
@@ -155,7 +177,7 @@
             note: d.note,
             cover: r.cover_url,
             audio: r.preview_url,
-            producer: { id: p.id || 'wavlab', name: p.name || 'Wav Lab', handle: p.handle, photo: p.photo_url, slug: p.slug || null, bio: p.bio || '', active: p.active !== false },
+            producer: { id: p.id || 'wavlab', name: p.name || 'Wav Lab', handle: p.handle, photo: p.photo_url, slug: p.slug || null, bio: p.bio || '', active: p.active !== false, badges: badgeList(p.producer_badges) },
             genre: { id: g.id || 'outro', name: g.name || 'Outro', color: safeColor(g.color), sort: g.sort == null ? 100 : g.sort }
         };
         // campos prontos para a busca
@@ -168,7 +190,7 @@
 
     function beatCols(o) {
         return 'id,type,title,price,cover_url,preview_url,tags,created_at,' +
-            'producers(id,name,handle,photo_url' + (o.slug ? ',slug,bio,active' : '') + '),genres(id,name,color,sort),' +
+            'producers(id,name,handle,photo_url' + (o.slug ? ',slug,bio,active' : '') + (o.badges ? ',producer_badges(badges(' + BADGE_FIELDS + '))' : '') + '),genres(id,name,color,sort),' +
             'product_beats(bpm,musical_key,type_artists,note)';
     }
 
@@ -178,11 +200,12 @@
         return q.order('created_at', { ascending: false });
     }
 
-    // Se o banco ainda nao recebeu a migracao 03 (slug, bio), tenta de novo sem essas colunas.
+    // Se o banco ainda nao recebeu a migracao 03 (slug, bio) ou a 004 (insignias), tenta de novo sem essas colunas.
     function fetchBeatsSafe(o) {
         return fetchBeats(beatCols(o)).then(function (res) {
             var m = (res.error && res.error.message) || '';
-            if (o.slug && /slug|bio|active/.test(m)) return fetchBeatsSafe({ slug: false });
+            if (o.badges && /badge/.test(m)) return fetchBeatsSafe({ slug: o.slug, badges: false });
+            if (o.slug && /slug|bio|active/.test(m)) return fetchBeatsSafe({ slug: false, badges: o.badges });
             return res;
         });
     }
@@ -202,7 +225,7 @@
         var ready = (PRODUCER_SLUG && !PRODUCER) ? loadProducer() : Promise.resolve(true);
         ready.then(function (found) {
             if (!found) return;
-            return fetchBeatsSafe({ slug: true })
+            return fetchBeatsSafe({ slug: true, badges: true })
                 .then(function (res) {
                     if (res.error) throw res.error;
                     BEATS = (res.data || []).map(normalize);
@@ -227,13 +250,20 @@
     }
 
     function loadProducer() {
-        return db.from('producers')
-            .select('id,name,handle,photo_url,bio,spotify_url,slug')
-            .eq('slug', PRODUCER_SLUG).eq('active', true).maybeSingle()
+        var base = 'id,name,handle,photo_url,bio,spotify_url,slug';
+        function query(cols) {
+            return db.from('producers').select(cols).eq('slug', PRODUCER_SLUG).eq('active', true).maybeSingle();
+        }
+        // sem a migracao 004 (insignias), busca o produtor sem elas
+        return query(base + ',producer_badges(badges(' + BADGE_FIELDS + '))')
+            .then(function (res) {
+                return (res.error && /badge/.test(res.error.message || '')) ? query(base) : res;
+            })
             .then(function (res) {
                 if (res.error) throw res.error;
                 if (!res.data) { showNotFound(); return false; }
                 PRODUCER = res.data;
+                PRODUCER.badges = badgeList(PRODUCER.producer_badges);
                 renderProfile(PRODUCER);
                 return true;
             });
@@ -250,6 +280,10 @@
         $('profile').innerHTML =
             '<div class="pf-avatar">' + (p.photo_url ? '<img src="' + esc(p.photo_url) + '" alt="Foto de ' + esc(p.name) + '">' : '<span>' + esc(initials(p.name)) + '</span>') + '</div>' +
             '<h1 class="pf-name">' + esc(p.name) + '</h1>' +
+            (p.badges && p.badges.length ? '<div class="pf-badges">' + p.badges.map(function (b) {
+                return '<span class="pf-badge"' + (b.description ? ' title="' + esc(b.description) + '"' : '') + '>' +
+                    '<img src="' + esc(badgeSrc(b)) + '" width="18" height="18" alt=""><span>' + esc(b.name) + '</span></span>';
+            }).join('') + '</div>' : '') +
             (p.bio ? '<p class="pf-bio">' + esc(p.bio) + '</p>' : '') +
             '<div class="pf-links">' +
                 '<a class="pf-btn primary" href="' + esc(wa) + '" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Falar com o produtor</a>' +
@@ -494,7 +528,7 @@
         var avatar = (b.producer.photo ? '<img src="' + esc(b.producer.photo) + '" alt="" loading="lazy">' : esc(initials(b.producer.name)));
         var pHref = producerHref(b.producer);
         var prod = (pHref ? '<a class="bprod" href="' + esc(pHref) + '" title="Ver a página de ' + esc(b.producer.name) + '">' : '<div class="bprod">') +
-                '<span class="avatar">' + avatar + '</span><span class="producer-name">' + esc(b.producer.name) + '</span>' +
+                '<span class="avatar">' + avatar + '</span><span class="producer-name">' + esc(b.producer.name) + '</span>' + badgesHTML(b.producer.badges) +
             (pHref ? '</a>' : '</div>');
         var cover =
             '<div class="bcover" style="--g:' + b.genre.color + '">' + coverHTML(b) +

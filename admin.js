@@ -9,7 +9,7 @@
     var LIMIT_PREVIEW = 15 * MB;
     var TITLE_MAX = CFG.TITLE_MAX || 70;     // limite do titulo do beat (config.js)
 
-    var state = { genres: [], producers: [], products: [], beatData: {}, files: {}, orders: [], waitlist: null, waitlistErr: '' };
+    var state = { genres: [], producers: [], products: [], beatData: {}, files: {}, orders: [], badges: [], producerBadges: [], badgesErr: '', waitlist: null, waitlistErr: '' };
     var editingProduct = null;
     var editingProducer = null;
     var deliveryProduct = null;
@@ -178,6 +178,7 @@
         res[4].data.forEach(function (f) { state.files[f.product_id] = f; });
         state.orders = res[5].data;
         renderAll();
+        loadBadges();        // fora do Promise.all: sem a migracao 004, so a area de titulos avisa
         loadWaitlist();      // fora do Promise.all: se a migracao 04 nao foi aplicada, so essa aba avisa
         if (statsLoaded) loadStats();
     }
@@ -548,6 +549,67 @@
     // =========================================================
     // PRODUTOR (criar / editar)
     // =========================================================
+    // ---------- titulos (insignias) ----------
+    async function loadBadges() {
+        var r = await Promise.all([
+            db.from('badges').select('*').order('sort'),
+            db.from('producer_badges').select('*')
+        ]);
+        var err = r[0].error || r[1].error;
+        state.badgesErr = err ? err.message : '';
+        state.badges = err ? [] : r[0].data;
+        state.producerBadges = err ? [] : r[1].data;
+    }
+
+    function badgeIconSrc(b) {
+        return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(b.icon || '') ? 'icons/badges/' + b.icon + '.svg' : '';
+    }
+
+    // caixas de marcar: marcada = o produtor tem o titulo (grava ao salvar o produtor)
+    function renderBadgePicks(producer) {
+        var box = $('pf_badges');
+        if (state.badgesErr) {
+            box.innerHTML = '<div class="hint warn">Não foi possível ler os títulos. Rode o SQL <b>004_badges</b> no Supabase.</div>';
+            return;
+        }
+        var titles = state.badges.filter(function (b) { return b.kind === 'titulo'; });
+        if (!titles.length) { box.innerHTML = '<div class="hint">Nenhum título cadastrado.</div>'; return; }
+        var has = {};
+        state.producerBadges.forEach(function (pb) { if (producer && pb.producer_id === producer.id) has[pb.badge_id] = true; });
+        box.innerHTML = titles.map(function (b) {
+            var src = badgeIconSrc(b);
+            return '<label class="badge-pick">' +
+                '<input type="checkbox" value="' + esc(b.id) + '"' + (has[b.id] ? ' checked' : '') + '>' +
+                (src ? '<img src="' + esc(src) + '" alt="">' : '') +
+                '<span class="badge-pick-text"><span class="badge-pick-name">' + esc(b.name) + '</span>' +
+                (b.description ? '<span class="badge-pick-sub">' + esc(b.description) + '</span>' : '') + '</span>' +
+            '</label>';
+        }).join('') + '<div class="hint">Os títulos aparecem na página do produtor e ao lado do nome nos beats.</div>';
+    }
+
+    // compara as caixas marcadas com o que o produtor ja tem e atribui / remove a diferenca
+    async function syncBadges(producerId) {
+        if (state.badgesErr) return;
+        var boxes = $('pf_badges').querySelectorAll('input[type=checkbox]');
+        if (!boxes.length) return;
+        var want = {}, have = {};
+        for (var i = 0; i < boxes.length; i++) if (boxes[i].checked) want[boxes[i].value] = true;
+        state.producerBadges.forEach(function (pb) { if (pb.producer_id === producerId) have[pb.badge_id] = true; });
+
+        var add = [];
+        Object.keys(want).forEach(function (id) { if (!have[id]) add.push({ producer_id: producerId, badge_id: id }); });
+        if (add.length) {
+            var ri = await db.from('producer_badges').insert(add);
+            if (ri.error) throw new Error(ri.error.message);
+        }
+        var drop = Object.keys(have).filter(function (id) { return !want[id]; });
+        for (var k = 0; k < drop.length; k++) {
+            var rd = await db.from('producer_badges').delete().eq('producer_id', producerId).eq('badge_id', drop[k]);
+            if (rd.error) throw new Error(rd.error.message);
+        }
+        await loadBadges();
+    }
+
     var slugTouched = false;
 
     // "Alexandre Cunha" vira "alexandre-cunha"
@@ -603,6 +665,7 @@
         $('pf_photo_cur').textContent = p && p.photo_url ? 'Já tem foto. Escolha outra só se quiser trocar.' : '';
         setStatus('pf_status', '');
         updateSlugHint();
+        renderBadgePicks(p);
         openModal('producerModal');
     }
 
@@ -647,8 +710,12 @@
             }
             if (r.error) throw new Error(r.error.message);
 
+            var badgeErr = '';
+            try { await syncBadges(id); } catch (be) { badgeErr = be.message; }
+
             var msg = 'Produtor salvo.';
             if (extrasSkipped) msg = 'Produtor salvo, mas endereço, bio e Spotify não foram gravados: rode o SQL migracao_03 no Supabase.';
+            if (badgeErr) msg += ' Os títulos não foram gravados: ' + badgeErr;
             closeModals();
             toast(msg, msg.length > 20 ? 6000 : 2800);
             await loadAll();

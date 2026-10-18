@@ -182,3 +182,12 @@
 }
 .filter-bar select:focus { outline: none; border-color: var(--accent); }
 .order-notes { font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.4; }
+
+/* ---------- Titulos (insignias) na edicao do produtor ---------- */
+.badge-picks { margin-bottom: 14px; display: grid; gap: 8px; }
+.badge-pick { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 12px; background: #18181b; cursor: pointer; }
+.badge-pick input { width: 20px; height: 20px; accent-color: var(--accent); margin-top: 2px; flex-shrink: 0; }
+.badge-pick img { width: 22px; height: 22px; flex-shrink: 0; }
+.badge-pick-text { min-width: 0; }
+.badge-pick-name { font-size: 14px; font-weight: 700; color: #fff; }
+.badge-pick-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
