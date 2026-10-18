@@ -91,6 +91,13 @@
     function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
     function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* sem storage, tudo bem */ } }
 
+    // capa que nao carrega: esconde a imagem e deixa so o degrade com as iniciais
+    // (o evento "error" nao sobe pela arvore, por isso a escuta na fase de captura)
+    document.addEventListener('error', function (e) {
+        var el = e.target;
+        if (el && el.tagName === 'IMG' && el.closest && el.closest('.bcover, .mp-cover')) el.style.display = 'none';
+    }, true);
+
     function findBeat(id) {
         for (var i = 0; i < BEATS.length; i++) if (BEATS[i].id === id) return BEATS[i];
         return null;
