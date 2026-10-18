@@ -172,3 +172,13 @@
 
 /* números e preços em fonte de dados */
 .order-price, .kpi-val { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* ---------- Produtos: filtros das listas e observacoes dos pedidos ---------- */
+.filter-bar { display: flex; gap: 8px; margin: 12px 0; }
+.filter-bar select {
+    flex: 1 1 0; min-width: 0; background: #18181b; color: #fff;
+    border: 1px solid var(--border-color); border-radius: 10px;
+    padding: 10px 12px; font-size: 14px; font-family: var(--font-ui);
+}
+.filter-bar select:focus { outline: none; border-color: var(--accent); }
+.order-notes { font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.4; }

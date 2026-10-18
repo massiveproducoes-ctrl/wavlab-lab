@@ -34,7 +34,7 @@
         <!-- LOGIN -->
         <section id="loginView" hidden>
             <h2 class="hero-title">Entrar</h2>
-            <p class="hero-sub">Área restrita para quem cadastra os beats.</p>
+            <p class="hero-sub">Área restrita para quem cadastra os produtos.</p>
             <form id="loginForm" class="panel">
                 <div class="field">
                     <label for="loginEmail">E-mail</label>
@@ -51,16 +51,24 @@
         <!-- APP -->
         <section id="appView" hidden>
             <nav class="tabs">
-                <button class="tab active" data-tab="beats">Beats</button>
+                <button class="tab active" data-tab="products">Produtos</button>
                 <button class="tab" data-tab="producers">Produtores</button>
                 <button class="tab" data-tab="orders">Pedidos</button>
                 <button class="tab" data-tab="waitlist">Lista de espera</button>
                 <button class="tab" data-tab="stats">Resumo</button>
             </nav>
 
-            <div id="tab-beats" class="tab-pane">
-                <button class="btn primary block" data-act="new-beat"><i class="fa-solid fa-plus"></i> Novo beat</button>
-                <div id="beatsAdminList" class="admin-list"></div>
+            <div id="tab-products" class="tab-pane">
+                <button class="btn primary block" data-act="new-product"><i class="fa-solid fa-plus"></i> Novo produto</button>
+                <div class="filter-bar">
+                    <select id="fltType" aria-label="Filtrar por tipo"></select>
+                    <select id="fltPub" aria-label="Filtrar por situação">
+                        <option value="">Publicados e rascunhos</option>
+                        <option value="pub">Só publicados</option>
+                        <option value="draft">Só rascunhos</option>
+                    </select>
+                </div>
+                <div id="productsAdminList" class="admin-list"></div>
             </div>
 
             <div id="tab-producers" class="tab-pane" hidden>
@@ -70,6 +78,9 @@
 
             <div id="tab-orders" class="tab-pane" hidden>
                 <p class="hint">Cada toque em "Finalizar via WhatsApp" na vitrine aparece aqui como <b>lead</b>. Atualize o status quando o Pix cair.</p>
+                <div class="filter-bar">
+                    <select id="fltOrderType" aria-label="Filtrar pedidos por tipo"></select>
+                </div>
                 <div id="ordersAdminList" class="admin-list"></div>
             </div>
 
@@ -92,17 +103,23 @@
         </section>
     </main>
 
-    <!-- MODAL: BEAT -->
-    <div id="beatModal" class="modal-overlay">
-        <form class="modal-content wide" id="beatForm">
+    <!-- MODAL: PRODUTO (beat, packs, kits, presets, guias, servicos, aluguel) -->
+    <div id="productModal" class="modal-overlay">
+        <form class="modal-content wide" id="productForm">
             <div class="modal-header">
-                <h3 class="modal-title" id="beatModalTitle">Novo beat</h3>
+                <h3 class="modal-title" id="productModalTitle">Novo produto</h3>
                 <button type="button" class="close-modal" data-close>&times;</button>
             </div>
 
             <div class="field">
+                <label for="pr_type">Tipo de produto *</label>
+                <select id="pr_type"></select>
+                <div class="hint" id="pr_type_hint">O tipo não pode ser trocado depois de salvo.</div>
+            </div>
+
+            <div class="field">
                 <label for="bf_title" class="label-row">
-                    <span>Título do beat * <span class="lbl-note">(é o que o artista busca)</span></span>
+                    <span id="bf_title_label">Título do beat * <span class="lbl-note">(é o que o artista busca)</span></span>
                     <span class="char-count" id="bf_title_count" aria-live="polite"></span>
                 </label>
                 <input id="bf_title" required placeholder='Ex.: Drake Type Beat - "Midnight Vibes"' autocomplete="off">
@@ -110,13 +127,13 @@
                 <button type="button" class="btn small ghost" id="bf_title_use" hidden></button>
             </div>
 
-            <div class="field">
+            <div class="field" data-for="beat">
                 <label for="bf_types">Type de (artistas de referência)</label>
                 <input id="bf_types" placeholder="Drake, Travis Scott" maxlength="120">
                 <div class="hint">Quem rodaria nesse beat? É assim que o artista pesquisa ("Drake type beat"). Use de 1 a 3, os mais fiéis ao som.</div>
             </div>
 
-            <details class="seo-guide">
+            <details class="seo-guide" data-for="beat">
                 <summary>Como criar um título que vende</summary>
                 <ul>
                     <li><b>Formato:</b> Artista Type Beat - "Nome do beat". Ex.: <i>Travis Scott Type Beat - "Midnight"</i></li>
@@ -129,17 +146,47 @@
             </details>
 
             <div class="row2">
-                <div class="field"><label for="bf_producer">Produtor *</label><select id="bf_producer" required></select></div>
-                <div class="field"><label for="bf_genre">Gênero *</label><select id="bf_genre" required></select></div>
+                <div class="field"><label for="bf_producer" id="bf_producer_label">Produtor *</label><select id="bf_producer"></select></div>
+                <div class="field"><label for="bf_genre" id="bf_genre_label">Gênero *</label><select id="bf_genre"></select></div>
             </div>
 
-            <div class="row2">
+            <div class="row2" data-for="beat">
                 <div class="field"><label for="bf_bpm">BPM</label><input id="bf_bpm" type="number" inputmode="numeric" min="40" max="260"></div>
                 <div class="field"><label for="bf_key">Tom</label><input id="bf_key" placeholder="ex.: F minor" maxlength="20"></div>
             </div>
 
+            <div class="field" data-for="pack service">
+                <label for="pr_price" id="pr_price_label">Preço (R$) *</label>
+                <input id="pr_price" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0 = grátis">
+                <div class="hint" id="pr_price_hint"></div>
+            </div>
+
+            <div class="field" data-for="pack service">
+                <label for="pr_desc">Descrição</label>
+                <textarea id="pr_desc" rows="3" maxlength="2000" placeholder="O que é, para quem serve."></textarea>
+            </div>
+
+            <div class="field" data-for="pack service">
+                <label for="pr_inside" id="pr_inside_label">O que tem dentro</label>
+                <textarea id="pr_inside" rows="3" maxlength="1000" placeholder="Ex.: 40 loops de guitarra, 25 one-shots de 808..."></textarea>
+            </div>
+
+            <div class="row2" data-for="pack">
+                <div class="field"><label for="pr_count">Nº de arquivos</label><input id="pr_count" type="number" inputmode="numeric" min="1" max="100000"></div>
+                <div class="field"><label for="pr_size">Tamanho total</label><input id="pr_size" placeholder="ex.: 1,2 GB" maxlength="30"></div>
+            </div>
+            <div class="field" data-for="pack">
+                <label for="pr_formats">Formatos</label>
+                <input id="pr_formats" placeholder="ex.: WAV, MIDI" maxlength="100">
+            </div>
+
+            <div class="field" data-for="service">
+                <label for="pr_duration" id="pr_duration_label">Duração</label>
+                <input id="pr_duration" placeholder="ex.: 2 horas" maxlength="60">
+            </div>
+
             <div class="field"><label for="bf_tags">Tags (separadas por vírgula)</label><input id="bf_tags" placeholder="dark, melódico, pista"></div>
-            <div class="field"><label for="bf_note">Nota do autor</label><textarea id="bf_note" rows="3" maxlength="400"></textarea></div>
+            <div class="field" data-for="beat"><label for="bf_note">Nota do autor</label><textarea id="bf_note" rows="3" maxlength="400"></textarea></div>
 
             <div class="group-title">Vitrine (público)</div>
             <div class="field">
@@ -147,22 +194,37 @@
                 <input id="bf_cover" type="file" accept="image/*">
                 <div class="hint" id="bf_cover_cur"></div>
             </div>
-            <div class="field">
-                <label for="bf_preview">Preview de 30s COM TAG (MP3) *</label>
+            <div class="field" data-for="beat pack">
+                <label for="bf_preview" id="bf_preview_label">Preview de 30s COM TAG (MP3) *</label>
                 <input id="bf_preview" type="file" accept="audio/*">
                 <div class="hint" id="bf_preview_hint"></div>
             </div>
 
-            <div class="group-title">Arquivos master (privados, só depois do pagamento)</div>
-            <div class="field"><label for="bf_mp3">MP3 master</label><input id="bf_mp3" type="file" accept="audio/*"><div class="hint" id="bf_mp3_cur"></div></div>
-            <div class="field"><label for="bf_wav">WAV master</label><input id="bf_wav" type="file" accept="audio/*,.wav"><div class="hint" id="bf_wav_cur"></div></div>
-            <div class="field"><label for="bf_stems">Stems (.zip, até 50MB)</label><input id="bf_stems" type="file" accept=".zip,.rar,.7z,application/zip"><div class="hint" id="bf_stems_cur"></div></div>
-            <div class="field"><label for="bf_stemslink">ou link dos stems (Drive / Dropbox)</label><input id="bf_stemslink" type="url" placeholder="https://drive.google.com/..."></div>
+            <div data-for="beat">
+                <div class="group-title">Arquivos master (privados, só depois do pagamento)</div>
+                <div class="field"><label for="bf_mp3">MP3 master</label><input id="bf_mp3" type="file" accept="audio/*"><div class="hint" id="bf_mp3_cur"></div></div>
+                <div class="field"><label for="bf_wav">WAV master</label><input id="bf_wav" type="file" accept="audio/*,.wav"><div class="hint" id="bf_wav_cur"></div></div>
+                <div class="field"><label for="bf_stems">Stems (.zip, até 50MB)</label><input id="bf_stems" type="file" accept=".zip,.rar,.7z,application/zip"><div class="hint" id="bf_stems_cur"></div></div>
+                <div class="field"><label for="bf_stemslink">ou link dos stems (Drive / Dropbox)</label><input id="bf_stemslink" type="url" placeholder="https://drive.google.com/..."></div>
+            </div>
+
+            <div data-for="pack">
+                <div class="group-title">Entrega (privado, só depois do pagamento)</div>
+                <div class="field">
+                    <label for="pr_delivery_url">Link de entrega (Drive / Dropbox / outro)</label>
+                    <input id="pr_delivery_url" type="url" placeholder="https://drive.google.com/..." maxlength="500">
+                    <div class="hint">Arquivos grandes não cabem no envio direto (limite de 50MB). Guarde aqui o link; ele só aparece para você, nunca na vitrine.</div>
+                </div>
+                <div class="field">
+                    <label for="pr_delivery_note">Observação para o cliente</label>
+                    <input id="pr_delivery_note" placeholder='ex.: senha: wavlab123' maxlength="500">
+                </div>
+            </div>
 
             <label class="check"><input type="checkbox" id="bf_published"> Publicar na vitrine</label>
 
             <div class="status" id="bf_status"></div>
-            <button class="btn primary block" type="submit" id="bf_save">Salvar beat</button>
+            <button class="btn primary block" type="submit" id="bf_save">Salvar produto</button>
         </form>
     </div>
 
@@ -213,11 +275,12 @@
             <div class="modal-header">
                 <div>
                     <h3 class="modal-title" id="dl_title">Entrega</h3>
-                    <p class="modal-sub">Gera os links dos arquivos (valem 7 dias)</p>
+                    <p class="modal-sub" id="dl_sub">Gera os links dos arquivos (valem 7 dias)</p>
                 </div>
                 <button type="button" class="close-modal" data-close>&times;</button>
             </div>
-            <div class="field"><label for="dl_license">Licença comprada</label><select id="dl_license"></select></div>
+            <div class="field" id="dl_license_field"><label for="dl_license">Licença comprada</label><select id="dl_license"></select></div>
+            <div class="field" id="dl_date_field" hidden><label for="dl_date">Data combinada</label><input id="dl_date" type="date"></div>
             <button class="btn primary block" type="button" id="dl_generate">Gerar links</button>
             <div class="status" id="dl_status"></div>
             <textarea id="dl_message" rows="9" readonly hidden></textarea>

@@ -9,11 +9,28 @@
     var LIMIT_PREVIEW = 15 * MB;
     var TITLE_MAX = CFG.TITLE_MAX || 70;     // limite do titulo do beat (config.js)
 
-    var state = { genres: [], producers: [], beats: [], files: {}, orders: [], waitlist: null, waitlistErr: '' };
-    var editingBeat = null;
+    var state = { genres: [], producers: [], products: [], beatData: {}, files: {}, orders: [], waitlist: null, waitlistErr: '' };
+    var editingProduct = null;
     var editingProducer = null;
-    var deliveryBeat = null;
+    var deliveryProduct = null;
+    var deliveryOrder = null;
     var db = null;
+
+    // Tipos de produto do catalogo (nomes de tela; os tipos liberados na vitrine ficam em config.js)
+    var PACK_TYPES = ['sample_pack', 'drum_kit', 'loop_kit', 'preset', 'project_file', 'guide'];
+    var SERVICE_TYPES = ['service', 'rental'];
+    var ALL_TYPES = ['beat'].concat(PACK_TYPES, SERVICE_TYPES);
+    var TYPE_ONE = {
+        beat: 'Beat', sample_pack: 'Sample pack', drum_kit: 'Drum kit', loop_kit: 'Loop kit',
+        preset: 'Preset', project_file: 'Projeto', guide: 'Guia', service: 'Serviço', rental: 'Aluguel'
+    };
+    var listFilter = { type: '', pub: '' };
+    var orderFilter = { type: '' };
+
+    // grupo do tipo decide quais campos e quais textos aparecem: beat, pack (arquivos) ou service (sem arquivo)
+    function typeGroup(t) { return t === 'beat' ? 'beat' : SERVICE_TYPES.indexOf(t) > -1 ? 'service' : 'pack'; }
+    function typeOne(t) { return TYPE_ONE[t] || t; }
+    var minLicense = Math.min.apply(null, (CFG.LICENSES || []).map(function (l) { return l.price; }));
 
     // =========================================================
     // HELPERS
@@ -144,8 +161,9 @@
         var res = await Promise.all([
             db.from('genres').select('*').order('sort'),
             db.from('producers').select('*').order('created_at'),
-            db.from('beats').select('*').order('created_at', { ascending: false }),
-            db.from('beat_files').select('*'),
+            db.from('products').select('*').order('created_at', { ascending: false }),
+            db.from('product_beats').select('*'),
+            db.from('product_files').select('*'),
             db.from('orders').select('*').order('created_at', { ascending: false }).limit(60)
         ]);
         for (var i = 0; i < res.length; i++) {
@@ -153,53 +171,84 @@
         }
         state.genres = res[0].data;
         state.producers = res[1].data;
-        state.beats = res[2].data;
+        state.products = res[2].data;
+        state.beatData = {};
+        res[3].data.forEach(function (d) { state.beatData[d.product_id] = d; });
         state.files = {};
-        res[3].data.forEach(function (f) { state.files[f.beat_id] = f; });
-        state.orders = res[4].data;
+        res[4].data.forEach(function (f) { state.files[f.product_id] = f; });
+        state.orders = res[5].data;
         renderAll();
         loadWaitlist();      // fora do Promise.all: se a migracao 04 nao foi aplicada, so essa aba avisa
         if (statsLoaded) loadStats();
     }
 
-    function renderAll() { renderBeats(); renderProducers(); renderOrders(); }
+    function renderAll() { renderProducts(); renderProducers(); renderOrders(); }
 
     // =========================================================
     // LISTAS
     // =========================================================
     function genreOf(id) { return findIn(state.genres, id) || { name: 'Outro', color: '#71717a' }; }
 
-    function renderBeats() {
-        var box = $('beatsAdminList');
-        if (!state.beats.length) {
-            box.innerHTML = '<div class="empty">Nenhum beat ainda.<br>Cadastre o primeiro produtor e depois o primeiro beat.</div>';
+    function typeOptions(allLabel) {
+        return '<option value="">' + allLabel + '</option>' + ALL_TYPES.map(function (t) {
+            return '<option value="' + t + '">' + esc(typeOne(t)) + '</option>';
+        }).join('');
+    }
+
+    function priceLabel(p) {
+        if (p.type === 'beat') return 'a partir de ' + brl(minLicense);
+        if (p.price == null) return 'sob consulta';
+        if (Number(p.price) === 0) return 'Grátis';
+        return brl(p.price) + (p.type === 'rental' ? '/dia' : '');
+    }
+
+    function renderProducts() {
+        var box = $('productsAdminList');
+        if (!state.products.length) {
+            box.innerHTML = '<div class="empty">Nenhum produto ainda.<br>Cadastre o primeiro produtor e depois o primeiro produto.</div>';
             return;
         }
-        box.innerHTML = state.beats.map(function (b) {
-            var p = findIn(state.producers, b.producer_id) || { name: '?' };
+        var list = state.products.filter(function (p) {
+            if (listFilter.type && p.type !== listFilter.type) return false;
+            if (listFilter.pub === 'pub' && !p.published) return false;
+            if (listFilter.pub === 'draft' && p.published) return false;
+            return true;
+        });
+        if (!list.length) { box.innerHTML = '<div class="empty">Nenhum produto com esse filtro.</div>'; return; }
+        box.innerHTML = list.map(function (b) {
+            var grp = typeGroup(b.type);
+            var prod = findIn(state.producers, b.producer_id);
             var g = genreOf(b.genre_id);
             var f = state.files[b.id] || {};
-            var color = safeColor(g.color);
+            var color = grp === 'beat' ? safeColor(g.color) : '#71717a';
+            var badges = '';
+            if (grp === 'beat') {
+                badges =
+                    '<span class="badge ' + (b.preview_url ? 'on' : '') + '">PREVIEW</span>' +
+                    '<span class="badge ' + (f.mp3_path ? 'on' : '') + '">MP3</span>' +
+                    '<span class="badge ' + (f.wav_path ? 'on' : '') + '">WAV</span>' +
+                    '<span class="badge ' + ((f.stems_path || f.stems_link) ? 'on' : '') + '">STEMS</span>';
+            } else if (grp === 'pack') {
+                badges =
+                    '<span class="badge ' + (b.preview_url ? 'on' : '') + '">DEMO</span>' +
+                    '<span class="badge ' + (f.delivery_url ? 'on' : '') + '">ENTREGA</span>';
+            }
+            var canDeliver = grp !== 'service';
             return '' +
             '<div class="item">' +
                 '<div class="item-top">' +
                     '<div class="thumb" style="--g:' + color + '">' + (b.cover_url ? '<img src="' + esc(b.cover_url) + '" alt="">' : '') + '<span>' + esc(initials(b.title)) + '</span></div>' +
                     '<div class="item-info">' +
                         '<div class="item-title">' + esc(b.title) + '</div>' +
-                        '<div class="item-sub"><span class="genre-pill" style="--g:' + color + '">' + esc(g.name) + '</span><span>' + esc(p.name) + '</span></div>' +
+                        '<div class="item-sub"><span class="genre-pill" style="--g:' + color + '">' + esc(typeOne(b.type)) + '</span><span>' + esc(prod ? prod.name : 'Estúdio') + '</span><span class="order-price">' + esc(priceLabel(b)) + '</span></div>' +
                     '</div>' +
-                    '<label class="switch" title="Publicado"><input type="checkbox" data-toggle-beat="' + b.id + '"' + (b.published ? ' checked' : '') + '><span></span></label>' +
+                    '<label class="switch" title="Publicado"><input type="checkbox" data-toggle-product="' + b.id + '"' + (b.published ? ' checked' : '') + '><span></span></label>' +
                 '</div>' +
-                '<div class="badges">' +
-                    '<span class="badge ' + (b.preview_url ? 'on' : '') + '">PREVIEW</span>' +
-                    '<span class="badge ' + (f.mp3_path ? 'on' : '') + '">MP3</span>' +
-                    '<span class="badge ' + (f.wav_path ? 'on' : '') + '">WAV</span>' +
-                    '<span class="badge ' + ((f.stems_path || f.stems_link) ? 'on' : '') + '">STEMS</span>' +
-                '</div>' +
+                (badges ? '<div class="badges">' + badges + '</div>' : '') +
                 '<div class="item-actions">' +
-                    '<button class="btn small" data-act="edit-beat" data-id="' + b.id + '"><i class="fa-solid fa-pen"></i> Editar</button>' +
-                    '<button class="btn small" data-act="delivery" data-id="' + b.id + '"><i class="fa-solid fa-paper-plane"></i> Entrega</button>' +
-                    '<button class="btn small ghost danger" data-act="delete-beat" data-id="' + b.id + '"><i class="fa-solid fa-trash"></i></button>' +
+                    '<button class="btn small" data-act="edit-product" data-id="' + b.id + '"><i class="fa-solid fa-pen"></i> Editar</button>' +
+                    (canDeliver ? '<button class="btn small" data-act="delivery" data-id="' + b.id + '"><i class="fa-solid fa-paper-plane"></i> Entrega</button>' : '') +
+                    '<button class="btn small ghost danger" data-act="delete-product" data-id="' + b.id + '"><i class="fa-solid fa-trash"></i></button>' +
                 '</div>' +
             '</div>';
         }).join('');
@@ -212,14 +261,14 @@
             return;
         }
         box.innerHTML = state.producers.map(function (p) {
-            var n = state.beats.filter(function (b) { return b.producer_id === p.id; }).length;
+            var n = state.products.filter(function (b) { return b.producer_id === p.id; }).length;
             return '' +
             '<div class="item">' +
                 '<div class="item-top">' +
                     '<div class="thumb round">' + (p.photo_url ? '<img src="' + esc(p.photo_url) + '" alt="">' : '') + '<span>' + esc(initials(p.name)) + '</span></div>' +
                     '<div class="item-info">' +
                         '<div class="item-title">' + esc(p.name) + '</div>' +
-                        '<div class="item-sub"><span>' + esc(p.handle || 'sem @') + '</span><span>' + n + ' beat' + (n === 1 ? '' : 's') + '</span>' + (p.slug ? '<span>' + esc(p.slug) + '</span>' : '') + '</div>' +
+                        '<div class="item-sub"><span>' + esc(p.handle || 'sem @') + '</span><span>' + n + ' produto' + (n === 1 ? '' : 's') + '</span>' + (p.slug ? '<span>' + esc(p.slug) + '</span>' : '') + '</div>' +
                     '</div>' +
                     '<label class="switch" title="Ativo"><input type="checkbox" data-toggle-producer="' + p.id + '"' + (p.active ? ' checked' : '') + '><span></span></label>' +
                 '</div>' +
@@ -231,26 +280,56 @@
         }).join('');
     }
 
+    // pedidos: o produto do pedido (pedidos antigos so tem beat_id) e o tipo (todo pedido antigo e de beat)
+    function orderProduct(o) { return findIn(state.products, o.product_id || o.beat_id); }
+    function orderType(o) { return o.product_type || 'beat'; }
+    function statusList(type) { return typeGroup(type) === 'service' ? ['lead', 'agendado', 'concluido'] : ['lead', 'pago', 'entregue']; }
+
+    function fmtDateOnly(iso) {
+        var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+        return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+    }
+
     function renderOrders() {
         var box = $('ordersAdminList');
         if (!state.orders.length) {
             box.innerHTML = '<div class="empty">Nenhum pedido ainda.</div>';
             return;
         }
-        box.innerHTML = state.orders.map(function (o) {
+        var list = state.orders.filter(function (o) { return !orderFilter.type || orderType(o) === orderFilter.type; });
+        if (!list.length) { box.innerHTML = '<div class="empty">Nenhum pedido desse tipo.</div>'; return; }
+        box.innerHTML = list.map(function (o) {
+            var type = orderType(o);
+            var grp = typeGroup(type);
             var when = new Date(o.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-            var opts = ['lead', 'pago', 'entregue'].map(function (s) {
-                return '<option value="' + s + '"' + (o.status === s ? ' selected' : '') + '>' + s + '</option>';
+            var sts = statusList(type);
+            if (sts.indexOf(o.status) === -1) sts = sts.concat([o.status]);
+            var opts = sts.map(function (s) {
+                return '<option value="' + esc(s) + '"' + (o.status === s ? ' selected' : '') + '>' + esc(s) + '</option>';
             }).join('');
+            var option = o.option_id || o.license_id;
+            var optTxt = (option && option !== 'unica') ? String(option).toUpperCase() : '';
+            var extra = [];
+            if (o.desired_date) extra.push('Data desejada: ' + fmtDateOnly(o.desired_date));
+            if (o.notes) extra.push(o.notes);
+            var prod = orderProduct(o);
+            var action = '';
+            if (prod && grp === 'service') action = '<button class="btn small" data-act="order-delivery" data-id="' + o.id + '"><i class="fa-regular fa-calendar-check"></i> Confirmar data</button>';
+            else if (prod) action = '<button class="btn small" data-act="order-delivery" data-id="' + o.id + '"><i class="fa-solid fa-paper-plane"></i> Entrega</button>';
             return '' +
             '<div class="item order">' +
                 '<div class="item-top">' +
                     '<div class="item-info">' +
-                        '<div class="item-title">' + esc(o.beat_title || 'Beat removido') + '</div>' +
-                        '<div class="item-sub"><span>' + esc(String(o.license_id).toUpperCase()) + '</span><span class="order-price">' + (o.price != null ? brl(o.price) : '') + '</span><span>' + esc(when) + '</span></div>' +
+                        '<div class="item-title">' + esc(o.product_title || o.beat_title || 'Produto removido') + '</div>' +
+                        '<div class="item-sub"><span class="genre-pill" style="--g:#71717a">' + esc(typeOne(type)) + '</span>' +
+                            (optTxt ? '<span>' + esc(optTxt) + '</span>' : '') +
+                            (o.quantity > 1 ? '<span>×' + esc(o.quantity) + '</span>' : '') +
+                            '<span class="order-price">' + (o.price != null ? brl(o.price) : '') + '</span><span>' + esc(when) + '</span></div>' +
+                        (extra.length ? '<div class="order-notes">' + extra.map(esc).join(' · ') + '</div>' : '') +
                     '</div>' +
                     '<select data-order-status="' + o.id + '">' + opts + '</select>' +
                 '</div>' +
+                (action ? '<div class="item-actions">' + action + '</div>' : '') +
             '</div>';
         }).join('');
     }
@@ -354,7 +433,7 @@
     }
 
     function beatTitle(id) {
-        var b = findIn(state.beats, id);
+        var b = findIn(state.products, id);
         return b ? b.title : 'Beat removido';
     }
 
@@ -580,9 +659,12 @@
     });
 
     // =========================================================
-    // BEAT (criar / editar)
+    // PRODUTO (criar / editar)
     // =========================================================
     function fillSelects() {
+        $('pr_type').innerHTML = ALL_TYPES.map(function (t) {
+            return '<option value="' + t + '">' + esc(typeOne(t)) + '</option>';
+        }).join('');
         $('bf_producer').innerHTML = '<option value="">Escolha...</option>' + state.producers.map(function (p) {
             return '<option value="' + p.id + '">' + esc(p.name) + '</option>';
         }).join('');
@@ -593,35 +675,87 @@
 
     function curHint(id, text) { $(id).textContent = text || ''; }
 
-    function openBeatForm(b) {
-        if (!state.producers.length) { toast('Cadastre um produtor primeiro.'); return; }
-        editingBeat = b || null;
+    // mostra so os campos do tipo escolhido e ajusta textos e campos obrigatorios
+    function applyType() {
+        var type = $('pr_type').value || 'beat';
+        var grp = typeGroup(type);
+        var isBeat = grp === 'beat';
+        var els = document.querySelectorAll('#productForm [data-for]');
+        for (var i = 0; i < els.length; i++) {
+            els[i].hidden = els[i].getAttribute('data-for').split(' ').indexOf(grp) === -1;
+        }
+
+        $('bf_producer').required = isBeat;
+        $('bf_genre').required = isBeat;
+        $('bf_producer').options[0].text = isBeat ? 'Escolha...' : 'Nenhum (estúdio)';
+        $('bf_genre').options[0].text = isBeat ? 'Escolha...' : 'Nenhum';
+        $('bf_producer_label').textContent = isBeat ? 'Produtor *' : 'Produtor (opcional)';
+        $('bf_genre_label').textContent = isBeat ? 'Gênero *' : 'Gênero (opcional)';
+
+        $('bf_title_label').innerHTML = isBeat
+            ? 'Título do beat * <span class="lbl-note">(é o que o artista busca)</span>'
+            : 'Título *';
+        $('bf_title').placeholder = isBeat ? 'Ex.: Drake Type Beat - "Midnight Vibes"' : 'Ex.: ' + (grp === 'service' ? 'Mix e master de 1 faixa' : 'Trap Essentials Vol. 1');
+
+        $('pr_price').required = grp === 'pack';
+        $('pr_price_label').textContent = type === 'rental' ? 'Valor da diária (R$)' + (grp === 'pack' ? ' *' : '') : 'Preço (R$)' + (grp === 'pack' ? ' *' : '');
+        $('pr_price_hint').textContent = grp === 'pack'
+            ? 'Preço fixo. 0 deixa o produto grátis.'
+            : 'Preço fixo. 0 = grátis; vazio = "sob consulta".';
+        $('pr_inside_label').textContent = grp === 'service' ? 'O que está incluso' : 'O que tem dentro';
+        $('pr_duration_label').textContent = type === 'rental' ? 'Condições da diária (retirada, caução...)' : 'Duração';
+        $('pr_duration').placeholder = type === 'rental' ? 'ex.: retirada no estúdio, caução de R$ 200' : 'ex.: 2 horas';
+
+        $('bf_preview_label').textContent = isBeat ? 'Preview de 30s COM TAG (MP3) *' : 'Áudio demo (MP3, opcional)';
+
+        $('productModalTitle').textContent = (editingProduct ? 'Editar ' : 'Novo ') + typeOne(type).toLowerCase();
+        $('bf_save').textContent = 'Salvar ' + typeOne(type).toLowerCase();
+        updateTitleHint();
+    }
+
+    function openProductForm(b) {
+        editingProduct = b || null;
         var f = b ? (state.files[b.id] || {}) : {};
+        var bd = b ? (state.beatData[b.id] || {}) : {};
+        var d = (b && b.details) || {};
         fillSelects();
-        $('beatModalTitle').textContent = b ? 'Editar beat' : 'Novo beat';
+        $('pr_type').value = b ? b.type : 'beat';
+        $('pr_type').disabled = !!b;
+        $('pr_type_hint').hidden = !!b;
         $('bf_title').value = b ? b.title : '';
-        $('bf_producer').value = b ? b.producer_id : '';
-        $('bf_genre').value = b ? b.genre_id : '';
-        $('bf_bpm').value = b && b.bpm ? b.bpm : '';
-        $('bf_key').value = b ? (b.musical_key || '') : '';
+        $('bf_producer').value = b && b.producer_id ? b.producer_id : '';
+        $('bf_genre').value = b && b.genre_id ? b.genre_id : '';
+        $('bf_bpm').value = bd.bpm ? bd.bpm : '';
+        $('bf_key').value = bd.musical_key || '';
         $('bf_tags').value = b ? (b.tags || []).join(', ') : '';
-        $('bf_types').value = b ? (b.type_artists || []).join(', ') : '';
-        $('bf_note').value = b ? (b.note || '') : '';
+        $('bf_types').value = (bd.type_artists || []).join(', ');
+        $('bf_note').value = bd.note || '';
+        $('pr_price').value = b && b.price != null && b.type !== 'beat' ? b.price : '';
+        $('pr_desc').value = b ? (b.description || '') : '';
+        $('pr_inside').value = d.inside || '';
+        $('pr_count').value = d.file_count || '';
+        $('pr_size').value = d.total_size || '';
+        $('pr_formats').value = d.formats || '';
+        $('pr_duration').value = d.duration || '';
+        $('pr_delivery_url').value = f.delivery_url || '';
+        $('pr_delivery_note').value = f.delivery_note || '';
         $('bf_published').checked = b ? !!b.published : false;
         $('bf_stemslink').value = f.stems_link || '';
         ['bf_cover', 'bf_preview', 'bf_mp3', 'bf_wav', 'bf_stems'].forEach(function (id) { $(id).value = ''; });
         curHint('bf_cover_cur', b && b.cover_url ? 'Já tem capa. Escolha outra só se quiser trocar.' : '');
-        curHint('bf_preview_hint', b && b.preview_url ? 'Já tem preview. Escolha outro só se quiser trocar.' : '');
+        curHint('bf_preview_hint', b && b.preview_url ? 'Já tem ' + (b.type === 'beat' ? 'preview' : 'áudio demo') + '. Escolha outro só se quiser trocar.' : '');
         curHint('bf_mp3_cur', f.mp3_path ? 'Já enviado.' : '');
         curHint('bf_wav_cur', f.wav_path ? 'Já enviado.' : '');
         curHint('bf_stems_cur', f.stems_path ? 'Já enviado.' : '');
         $('bf_preview_hint').className = 'hint';
         setStatus('bf_status', '');
-        updateTitleHint();
-        openModal('beatModal');
+        applyType();
+        openModal('productModal');
     }
 
-    // ---------- titulo bom para busca (SEO) ----------
+    $('pr_type').addEventListener('change', applyType);
+
+    // ---------- titulo bom para busca (SEO, so para beats) ----------
     function norm(s) {
         s = String(s == null ? '' : s).toLowerCase();
         try { s = s.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch (e) { /* navegador antigo */ }
@@ -630,6 +764,12 @@
 
     function parseList(str, max) {
         return String(str || '').split(',').map(function (t) { return t.trim(); }).filter(Boolean).slice(0, max);
+    }
+
+    // endereco do produto: titulo sem acento + 8 letras do id (igual ao que a migracao gerou para os beats)
+    function productSlug(title, id) {
+        var base = norm(title).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50).replace(/-+$/, '') || 'produto';
+        return base + '-' + String(id).replace(/-/g, '').slice(0, 8);
     }
 
     var titleSuggestion = '';
@@ -644,15 +784,21 @@
         counter.className = 'char-count' + (len > TITLE_MAX ? ' over' : len >= TITLE_MAX - 10 ? ' warn' : '');
 
         var title = $('bf_title').value.trim();
-        var types = parseList($('bf_types').value, 5);
         var hint = $('bf_title_hint'), btn = $('bf_title_use');
+        titleSuggestion = '';
+        btn.hidden = true;
+
+        if (($('pr_type').value || 'beat') !== 'beat') {
+            hint.className = 'hint';
+            hint.textContent = title.length > TITLE_MAX ? 'Tem ' + title.length + ' caracteres; o limite é ' + TITLE_MAX + '. Encurte para poder salvar.' : 'Até ' + TITLE_MAX + ' caracteres.';
+            return;
+        }
+
+        var types = parseList($('bf_types').value, 5);
         var hasType = /type\s*beat/i.test(title);
         var nt = norm(title);
         var cites = types.some(function (x) { return nt.indexOf(norm(x)) > -1; });
         var problems = [];
-
-        titleSuggestion = '';
-        btn.hidden = true;
 
         if (!title) {
             hint.className = 'hint';
@@ -708,25 +854,62 @@
         a.src = url;
     });
 
-    $('beatForm').addEventListener('submit', async function (e) {
+    // dados dos tipos que nao sao beat (vao em products.details); mantem chaves que a tela nao conhece
+    function readDetails(grp, old) {
+        var d = Object.assign({}, old || {});
+        function put(key, val) { if (val) d[key] = val; else delete d[key]; }
+        put('inside', $('pr_inside').value.trim());
+        if (grp === 'pack') {
+            var n = parseInt($('pr_count').value, 10);
+            put('file_count', isNaN(n) || n < 1 ? null : n);
+            put('total_size', $('pr_size').value.trim());
+            put('formats', $('pr_formats').value.trim());
+        }
+        if (grp === 'service') put('duration', $('pr_duration').value.trim());
+        return d;
+    }
+
+    $('productForm').addEventListener('submit', async function (e) {
         e.preventDefault();
         var btn = $('bf_save');
+        var type = $('pr_type').value || 'beat';
+        var grp = typeGroup(type);
+        var isBeat = grp === 'beat';
         var coverF = $('bf_cover').files[0], prevF = $('bf_preview').files[0];
-        var mp3F = $('bf_mp3').files[0], wavF = $('bf_wav').files[0], stemsF = $('bf_stems').files[0];
+        var mp3F = isBeat ? $('bf_mp3').files[0] : null, wavF = isBeat ? $('bf_wav').files[0] : null, stemsF = isBeat ? $('bf_stems').files[0] : null;
+        function fail(msg, focusId) { setStatus('bf_status', msg, true); if (focusId) $(focusId).focus(); }
 
-        var titleLen = $('bf_title').value.trim().length;
-        if (titleLen > TITLE_MAX) { setStatus('bf_status', 'O título tem ' + titleLen + ' caracteres; o limite é ' + TITLE_MAX + '. Encurte para salvar.', true); $('bf_title').focus(); return; }
-        if (!editingBeat && !prevF) { setStatus('bf_status', 'Falta o preview de 30s com tag.', true); return; }
-        if (prevF && prevF.size > LIMIT_PREVIEW) { setStatus('bf_status', 'Preview acima de 15MB. Exporte em MP3 128-192kbps.', true); return; }
+        var title = $('bf_title').value.trim();
+        if (!title) return fail('Falta o título.', 'bf_title');
+        if (title.length > TITLE_MAX) return fail('O título tem ' + title.length + ' caracteres; o limite é ' + TITLE_MAX + '. Encurte para salvar.', 'bf_title');
+        if (isBeat) {
+            if (!$('bf_producer').value) return fail('Escolha o produtor.', 'bf_producer');
+            if (!$('bf_genre').value) return fail('Escolha o gênero.', 'bf_genre');
+            if (!editingProduct && !prevF) return fail('Falta o preview de 30s com tag.');
+        }
+        if (prevF && prevF.size > LIMIT_PREVIEW) return fail('Preview acima de 15MB. Exporte em MP3 128-192kbps.');
         var big = [mp3F, wavF, stemsF].filter(function (x) { return x && x.size > LIMIT_MASTER; })[0];
-        if (big) { setStatus('bf_status', '"' + big.name + '" passa de 50MB. Suba no Drive e cole o link em "link dos stems".', true); return; }
+        if (big) return fail('"' + big.name + '" passa de 50MB. Suba no Drive e cole o link em "link dos stems".');
+
+        var price = null;
+        if (!isBeat) {
+            var rawPrice = $('pr_price').value.trim().replace(',', '.');
+            if (rawPrice !== '') {
+                price = Number(rawPrice);
+                if (!isFinite(price) || price < 0) return fail('O preço precisa ser 0 ou mais.', 'pr_price');
+            } else if (grp === 'pack') {
+                return fail('Falta o preço (use 0 para grátis).', 'pr_price');
+            }
+        }
+        var deliveryUrl = $('pr_delivery_url').value.trim();
+        if (grp === 'pack' && deliveryUrl && !/^https:\/\//i.test(deliveryUrl)) return fail('O link de entrega deve começar com https://', 'pr_delivery_url');
 
         btn.disabled = true;
         try {
-            var id = editingBeat ? editingBeat.id : uuid();
-            var old = editingBeat ? (state.files[id] || {}) : {};
-            var coverUrl = editingBeat ? editingBeat.cover_url : null;
-            var prevUrl = editingBeat ? editingBeat.preview_url : null;
+            var id = editingProduct ? editingProduct.id : uuid();
+            var old = editingProduct ? (state.files[id] || {}) : {};
+            var coverUrl = editingProduct ? editingProduct.cover_url : null;
+            var prevUrl = editingProduct ? editingProduct.preview_url : null;
             var paths = { mp3_path: old.mp3_path || null, wav_path: old.wav_path || null, stems_path: old.stems_path || null };
 
             if (coverF) {
@@ -735,7 +918,7 @@
                 coverUrl = publicUrl('covers', id + '/cover.jpg');
             }
             if (prevF) {
-                setStatus('bf_status', 'Enviando preview...');
+                setStatus('bf_status', isBeat ? 'Enviando preview...' : 'Enviando áudio demo...');
                 var pe = fileExt(prevF, 'mp3');
                 await upload('previews', id + '/preview.' + pe, prevF, prevF.type);
                 prevUrl = publicUrl('previews', id + '/preview.' + pe);
@@ -750,38 +933,52 @@
 
             var row = {
                 id: id,
-                producer_id: $('bf_producer').value,
-                genre_id: $('bf_genre').value,
-                title: $('bf_title').value.trim(),
-                bpm: isNaN(bpm) ? null : bpm,
-                musical_key: $('bf_key').value.trim() || null,
+                type: type,
+                slug: editingProduct ? editingProduct.slug : productSlug(title, id),
+                title: title,
+                description: isBeat ? (editingProduct ? editingProduct.description : null) : ($('pr_desc').value.trim() || null),
+                producer_id: $('bf_producer').value || null,
+                genre_id: $('bf_genre').value || null,
                 tags: tags,
-                type_artists: parseList($('bf_types').value, 5),
-                note: $('bf_note').value.trim() || null,
                 cover_url: coverUrl,
                 preview_url: prevUrl,
+                price: price,
+                details: isBeat ? ((editingProduct && editingProduct.details) || {}) : readDetails(grp, editingProduct && editingProduct.details),
                 published: $('bf_published').checked
             };
-            var r1 = await db.from('beats').upsert(row);
-            var typesSkipped = false;
-            if (r1.error && /type_artists/.test(r1.error.message || '')) {
-                // banco ainda sem a migracao 02: salva o resto e avisa
-                delete row.type_artists;
-                typesSkipped = true;
-                r1 = await db.from('beats').upsert(row);
-            }
-            if (r1.error && /beats_title_len/.test(r1.error.message || '')) throw new Error('O título passa de ' + TITLE_MAX + ' caracteres. Encurte para salvar.');
+            var r1 = await db.from('products').upsert(row);
+            if (r1.error && /products_title_len/.test(r1.error.message || '')) throw new Error('O título passa de ' + TITLE_MAX + ' caracteres. Encurte para salvar.');
+            if (r1.error && /products_price_min/.test(r1.error.message || '')) throw new Error('O preço precisa ser 0 ou mais.');
+            if (r1.error && /products_slug_key/.test(r1.error.message || '')) throw new Error('Já existe um produto com esse endereço. Mude um pouco o título.');
             if (r1.error) throw new Error(r1.error.message);
 
-            var r2 = await db.from('beat_files').upsert({
-                beat_id: id,
-                mp3_path: paths.mp3_path, wav_path: paths.wav_path, stems_path: paths.stems_path,
-                stems_link: $('bf_stemslink').value.trim() || null
-            });
-            if (r2.error) throw new Error(r2.error.message);
+            if (isBeat) {
+                var r2 = await db.from('product_beats').upsert({
+                    product_id: id, type: 'beat',
+                    bpm: isNaN(bpm) ? null : bpm,
+                    musical_key: $('bf_key').value.trim() || null,
+                    type_artists: parseList($('bf_types').value, 5),
+                    note: $('bf_note').value.trim() || null
+                });
+                if (r2.error) throw new Error(r2.error.message);
+
+                var r3 = await db.from('product_files').upsert({
+                    product_id: id,
+                    mp3_path: paths.mp3_path, wav_path: paths.wav_path, stems_path: paths.stems_path,
+                    stems_link: $('bf_stemslink').value.trim() || null
+                });
+                if (r3.error) throw new Error(r3.error.message);
+            } else if (grp === 'pack') {
+                var r4 = await db.from('product_files').upsert({
+                    product_id: id,
+                    delivery_url: deliveryUrl || null,
+                    delivery_note: $('pr_delivery_note').value.trim() || null
+                });
+                if (r4.error) throw new Error(r4.error.message);
+            }
 
             closeModals();
-            toast(typesSkipped ? 'Beat salvo, mas o "Type de" não foi gravado: rode o SQL migracao_02 no Supabase.' : 'Beat salvo.');
+            toast(isBeat ? 'Beat salvo.' : typeOne(type) + ' salvo.');
             await loadAll();
         } catch (err) {
             setStatus('bf_status', err.message, true);
@@ -789,7 +986,7 @@
         btn.disabled = false;
     });
 
-    async function deleteBeat(b) {
+    async function deleteProduct(b) {
         if (!confirm('Excluir "' + b.title + '" e todos os arquivos dele? Não dá para desfazer.')) return;
         try {
             var buckets = ['covers', 'previews', 'masters'];
@@ -799,60 +996,101 @@
                     await db.storage.from(buckets[i]).remove(l.data.map(function (x) { return b.id + '/' + x.name; }));
                 }
             }
-            var r = await db.from('beats').delete().eq('id', b.id);
+            var r = await db.from('products').delete().eq('id', b.id);     // leva junto product_beats e product_files
             if (r.error) throw new Error(r.error.message);
-            toast('Beat excluído.');
+            toast('Produto excluído.');
             await loadAll();
         } catch (err) { toast('Erro: ' + err.message); }
     }
 
     // =========================================================
-    // ENTREGA (links temporarios das masters)
+    // ENTREGA E CONFIRMACAO (beat: links assinados; pack: link privado; servico: data)
     // =========================================================
-    function openDelivery(b) {
-        deliveryBeat = b;
-        $('dl_title').textContent = 'Entrega: ' + b.title;
-        $('dl_license').innerHTML = CFG.LICENSES.map(function (l) {
-            return '<option value="' + l.id + '">' + esc(l.name) + ' (' + brl(l.price) + ')</option>';
-        }).join('');
+    // order = pedido de onde veio o clique (opcional): preenche a licenca e a data
+    function openDelivery(b, order) {
+        deliveryProduct = b;
+        deliveryOrder = order || null;
+        var grp = typeGroup(b.type);
+        $('dl_title').textContent = (grp === 'service' ? 'Confirmar data: ' : 'Entrega: ') + b.title;
+        $('dl_sub').textContent = grp === 'beat' ? 'Gera os links dos arquivos (valem 7 dias)'
+            : grp === 'pack' ? 'Monta a mensagem com o link de entrega'
+            : 'Monta a mensagem de confirmação da data';
+        $('dl_generate').textContent = grp === 'beat' ? 'Gerar links' : 'Gerar mensagem';
+
+        $('dl_license_field').hidden = grp !== 'beat';
+        $('dl_date_field').hidden = grp !== 'service';
+        if (grp === 'beat') {
+            $('dl_license').innerHTML = CFG.LICENSES.map(function (l) {
+                return '<option value="' + l.id + '">' + esc(l.name) + ' (' + brl(l.price) + ')</option>';
+            }).join('');
+            var want = order && (order.option_id || order.license_id);
+            if (want && findIn(CFG.LICENSES, want)) $('dl_license').value = want;
+        }
+        if (grp === 'service') $('dl_date').value = order && order.desired_date ? String(order.desired_date).slice(0, 10) : '';
+
         $('dl_message').hidden = true;
         $('dl_copy').hidden = true;
         setStatus('dl_status', '');
         openModal('deliveryModal');
     }
 
+    function showMessage(text, statusText, isWarn) {
+        $('dl_message').value = text;
+        $('dl_message').hidden = false;
+        $('dl_copy').hidden = false;
+        setStatus('dl_status', statusText, !!isWarn);
+    }
+
     $('dl_generate').addEventListener('click', async function () {
-        var b = deliveryBeat;
+        var b = deliveryProduct;
         var f = state.files[b.id] || {};
-        var lic = $('dl_license').value;
-        var want = lic === 'mp3' ? ['mp3'] : lic === 'wav' ? ['mp3', 'wav'] : ['mp3', 'wav', 'stems'];
-        var labels = { mp3: 'MP3', wav: 'WAV', stems: 'Stems' };
-        var lines = [], missing = [];
+        var grp = typeGroup(b.type);
         var btn = $('dl_generate');
         btn.disabled = true;
-        setStatus('dl_status', 'Gerando links...');
         try {
-            for (var i = 0; i < want.length; i++) {
-                var k = want[i];
-                var path = f[k + '_path'];
-                if (path) {
-                    var r = await db.storage.from('masters').createSignedUrl(path, 7 * 24 * 3600);
-                    if (r.error) throw new Error(r.error.message);
-                    lines.push(labels[k] + ': ' + r.data.signedUrl);
-                } else if (k === 'stems' && f.stems_link) {
-                    lines.push('Stems: ' + f.stems_link);
-                } else {
-                    missing.push(labels[k]);
+            if (grp === 'pack') {
+                if (!f.delivery_url) throw new Error('Esse produto não tem link de entrega. Edite o produto e cole o link.');
+                showMessage(
+                    'Pagamento confirmado! Seguem os arquivos de *' + b.title + '*:\n\n' + f.delivery_url +
+                    (f.delivery_note ? '\n\n' + f.delivery_note : '') +
+                    '\n\nBaixe e guarde. Qualquer coisa é só chamar!',
+                    'Pronto. Copie e cole no WhatsApp do cliente.');
+            } else if (grp === 'service') {
+                var date = fmtDateOnly($('dl_date').value);
+                if (!date) throw new Error('Escolha a data combinada.');
+                var qty = deliveryOrder && deliveryOrder.quantity > 1 ? ' (' + deliveryOrder.quantity + 'x)' : '';
+                showMessage(
+                    'Oi! Confirmando o seu pedido de *' + b.title + '*' + qty + ' para o dia *' + date + '*.' +
+                    (b.type === 'rental' ? ' Combine comigo o horário de retirada e de devolução.' : ' Me avisa se precisar mudar a data.') +
+                    '\n\nQualquer dúvida é só chamar!',
+                    'Pronto. Copie e cole no WhatsApp do cliente.');
+            } else {
+                var lic = $('dl_license').value;
+                var want = lic === 'mp3' ? ['mp3'] : lic === 'wav' ? ['mp3', 'wav'] : ['mp3', 'wav', 'stems'];
+                var labels = { mp3: 'MP3', wav: 'WAV', stems: 'Stems' };
+                var lines = [], missing = [];
+                setStatus('dl_status', 'Gerando links...');
+                for (var i = 0; i < want.length; i++) {
+                    var k = want[i];
+                    var path = f[k + '_path'];
+                    if (path) {
+                        var r = await db.storage.from('masters').createSignedUrl(path, 7 * 24 * 3600);
+                        if (r.error) throw new Error(r.error.message);
+                        lines.push(labels[k] + ': ' + r.data.signedUrl);
+                    } else if (k === 'stems' && f.stems_link) {
+                        lines.push('Stems: ' + f.stems_link);
+                    } else {
+                        missing.push(labels[k]);
+                    }
                 }
+                if (!lines.length) throw new Error('Esse beat não tem nenhum arquivo master enviado.');
+                var licName = findIn(CFG.LICENSES, lic).name;
+                showMessage(
+                    'Pagamento confirmado! Seguem seus arquivos de *' + b.title + '* (licença ' + licName + '):\n\n' +
+                    lines.join('\n\n') + '\n\nOs links valem por 7 dias, baixe e guarde. Qualquer coisa é só chamar!',
+                    missing.length ? 'Atenção: faltam arquivos de ' + missing.join(', ') + ' neste beat.' : 'Pronto. Copie e cole no WhatsApp do cliente.',
+                    missing.length > 0);
             }
-            if (!lines.length) throw new Error('Esse beat não tem nenhum arquivo master enviado.');
-            var licName = findIn(CFG.LICENSES, lic).name;
-            $('dl_message').value =
-                'Pagamento confirmado! Seguem seus arquivos de *' + b.title + '* (licença ' + licName + '):\n\n' +
-                lines.join('\n\n') + '\n\nOs links valem por 7 dias, baixe e guarde. Qualquer coisa é só chamar!';
-            $('dl_message').hidden = false;
-            $('dl_copy').hidden = false;
-            setStatus('dl_status', missing.length ? 'Atenção: faltam arquivos de ' + missing.join(', ') + ' neste beat.' : 'Pronto. Copie e cole no WhatsApp do cliente.', missing.length > 0);
         } catch (err) {
             setStatus('dl_status', err.message, true);
         }
@@ -865,6 +1103,13 @@
         catch (e) { ta.select(); document.execCommand('copy'); toast('Mensagem copiada.'); }
     });
 
+    // filtros das listas
+    $('fltType').innerHTML = typeOptions('Todos os tipos');
+    $('fltOrderType').innerHTML = typeOptions('Todos os tipos');
+    $('fltType').addEventListener('change', function () { listFilter.type = this.value; renderProducts(); });
+    $('fltPub').addEventListener('change', function () { listFilter.pub = this.value; renderProducts(); });
+    $('fltOrderType').addEventListener('change', function () { orderFilter.type = this.value; renderOrders(); });
+
     // =========================================================
     // EVENTOS
     // =========================================================
@@ -874,7 +1119,7 @@
             var tabs = document.querySelectorAll('.tab');
             for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i] === tab);
             var name = tab.getAttribute('data-tab');
-            ['beats', 'producers', 'orders', 'waitlist', 'stats'].forEach(function (n) { $('tab-' + n).hidden = (n !== name); });
+            ['products', 'producers', 'orders', 'waitlist', 'stats'].forEach(function (n) { $('tab-' + n).hidden = (n !== name); });
             if (name === 'stats' && !statsLoaded) loadStats();
             tab.scrollIntoView({ block: 'nearest', inline: 'nearest' });     // a barra de abas rola ate a aba escolhida
             return;
@@ -886,25 +1131,35 @@
         if (!act) return;
         var a = act.getAttribute('data-act');
         var id = act.getAttribute('data-id');
-        if (a === 'new-beat') openBeatForm(null);
+        if (a === 'new-product') openProductForm(null);
         else if (a === 'new-producer') openProducerForm(null);
-        else if (a === 'edit-beat') openBeatForm(findIn(state.beats, id));
+        else if (a === 'edit-product') openProductForm(findIn(state.products, id));
         else if (a === 'edit-producer') openProducerForm(findIn(state.producers, id));
-        else if (a === 'delivery') openDelivery(findIn(state.beats, id));
-        else if (a === 'delete-beat') deleteBeat(findIn(state.beats, id));
+        else if (a === 'delivery') openDelivery(findIn(state.products, id), null);
+        else if (a === 'order-delivery') {
+            var ord = findIn(state.orders, id);
+            var prd = ord && orderProduct(ord);
+            if (prd) openDelivery(prd, ord);
+        }
+        else if (a === 'delete-product') deleteProduct(findIn(state.products, id));
         else if (a === 'delete-wait') deleteWait(id);
     });
 
     document.addEventListener('change', async function (e) {
         var t = e.target;
-        var bid = t.getAttribute && t.getAttribute('data-toggle-beat');
+        var bid = t.getAttribute && t.getAttribute('data-toggle-product');
         var pid = t.getAttribute && t.getAttribute('data-toggle-producer');
         var oid = t.getAttribute && t.getAttribute('data-order-status');
         var r;
         if (bid) {
-            r = await db.from('beats').update({ published: t.checked }).eq('id', bid);
+            r = await db.from('products').update({ published: t.checked }).eq('id', bid);
             if (r.error) { t.checked = !t.checked; toast('Erro: ' + r.error.message); }
-            else { findIn(state.beats, bid).published = t.checked; toast(t.checked ? 'Beat publicado.' : 'Beat oculto.'); }
+            else {
+                var pr = findIn(state.products, bid);
+                pr.published = t.checked;
+                var nm = pr.type === 'beat' ? 'Beat' : 'Produto';
+                toast(t.checked ? nm + ' publicado.' : nm + ' oculto.');
+            }
         } else if (pid) {
             r = await db.from('producers').update({ active: t.checked }).eq('id', pid);
             if (r.error) { t.checked = !t.checked; toast('Erro: ' + r.error.message); }
