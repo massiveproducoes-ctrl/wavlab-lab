@@ -88,7 +88,7 @@ Os scripts são carregados na ordem: `supabase-js` (CDN jsDelivr, versão fixa) 
 - Excluir um beat apaga também os arquivos dele no storage.
 
 ### Supabase
-- Tabelas usadas: `genres`, `producers`, `beats`, `beat_files`, `orders`.
+- Tabelas usadas pela vitrine: `genres`, `producers`, `products` (com `product_beats` embutido), `orders`, `events`, `waitlist`. `beats` e `beat_files` viraram legado (`supabase/migrations/001_catalogo.sql`). O `admin.js` ainda lê as tabelas antigas até a próxima etapa.
 - Buckets de storage: `covers`, `previews`, `avatars` (públicos) e `masters` (privado, só por link assinado).
 - **Compatibilidade com o banco antigo:** `type_artists` (em `beats`) e `terms_snapshot` (em `orders`) vêm de uma migração SQL (`migracao_02`) que o usuário aplica no Supabase por conta própria. Se a coluna não existir, vitrine e admin tentam de novo sem ela e continuam funcionando. Preserve esse comportamento ao mexer nessas consultas.
 - **Migração 04** (`~\Documents\wavlab-sql\migracao_04.sql`, fora do repositório): cria `waitlist` e `events` (público só insere; só quem está logado no admin lê), um freio contra enxurrada de registros e a função `events_summary(dias)`. Tabelas `waitlist` e `events` e a função só existem depois dela.

@@ -7,6 +7,15 @@ window.WAVLAB = {
     SUPABASE_URL: 'https://rnqhytemdymjkpgtokvk.supabase.co',
     SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucWh5dGVtZHltamtwZ3Rva3ZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNTMxNTYsImV4cCI6MjEwNzgyOTE1Nn0.NYMvBoKiPtqnY5gzKGyFnZJDbJxs8_5RDsJLx8Yi0aQ',
 
+    // Tipos de produto que a vitrine mostra. Hoje so 'beat' tem card e modal de compra prontos:
+    // so acrescente outro tipo aqui quando a tela dele existir (as abas por tipo aparecem sozinhas
+    // quando houver mais de um tipo publicado).
+    CATALOG_TYPES: ['beat'],
+    PRODUCT_TYPES: {
+        beat: 'Beats', sample_pack: 'Sample packs', drum_kit: 'Drum kits', loop_kit: 'Loop kits',
+        preset: 'Presets', project_file: 'Projetos', guide: 'Guias', service: 'Serviços', rental: 'Aluguel'
+    },
+
     // Numero que recebe todos os leads (so digitos, com 55 + DDD)
     WHATSAPP: '5591985447000',
 

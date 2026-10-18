@@ -9,6 +9,8 @@
     var BATCH = 24;                 // quantos beats entram a cada "rolagem"
     var BEATS = [];
     var db = null;
+    // tipos de produto que a vitrine mostra (config.js). So 'beat' tem card e modal de compra prontos.
+    var CATALOG_TYPES = (CFG.CATALOG_TYPES && CFG.CATALOG_TYPES.length) ? CFG.CATALOG_TYPES : ['beat'];
 
     // Pagina do produtor: o <body> traz data-producer e so os beats dele aparecem.
     //  - produtor.html?p=slug : data-producer="url", o slug vem do endereco (vale para qualquer produtor, sem pasta)
@@ -27,7 +29,8 @@
     // link compartilhado: ?beat=ID rola ate o beat e destaca (so aceita o formato de um id)
     var BEAT_PARAM = null;
     try {
-        var bp = new URLSearchParams(window.location.search).get('beat');
+        var qs = new URLSearchParams(window.location.search);
+        var bp = qs.get('beat') || qs.get('produto');
         if (bp && /^[A-Za-z0-9-]{1,64}$/.test(bp)) BEAT_PARAM = bp;
     } catch (e) { /* sem URLSearchParams */ }
 
@@ -42,7 +45,10 @@
         if (!getDb()) return;
         try {
             var row = { type: type };
-            if (f && f.beat) row.beat_id = f.beat;
+            if (f && f.beat) {
+                row.product_id = f.beat;
+                row.beat_id = f.beat;      // legado: o resumo do admin antigo ainda le beat_id
+            }
             if (f && f.license) row.license_id = f.license;
             if (f && f.term) row.term = f.term;
             db.from('events').insert(row).then(function () {}, function () {});
@@ -113,7 +119,7 @@
     // =========================================================
     // ESTADO DA VITRINE
     // =========================================================
-    var filter = { genre: null, producer: null, q: '' };
+    var filter = { genre: null, producer: null, type: null, q: '' };
     var view = lsGet('wavlab_view');
     if (view !== 'grid' && view !== 'list') {
         view = 'list';
@@ -127,14 +133,19 @@
     function normalize(r) {
         var p = r.producers || {};
         var g = r.genres || {};
+        var d = r.product_beats;                  // dados proprios do beat (objeto ou lista de 1, conforme o embed)
+        if (Array.isArray(d)) d = d[0];
+        d = d || {};
         var b = {
             id: r.id,
+            type: r.type || 'beat',
             title: r.title,
-            bpm: r.bpm,
-            key: r.musical_key,
+            price: r.price,
+            bpm: d.bpm,
+            key: d.musical_key,
             tags: r.tags || [],
-            types: r.type_artists || [],
-            note: r.note,
+            types: d.type_artists || [],
+            note: d.note,
             cover: r.cover_url,
             audio: r.preview_url,
             producer: { id: p.id || 'wavlab', name: p.name || 'Wav Lab', handle: p.handle, photo: p.photo_url, slug: p.slug || null, bio: p.bio || '', active: p.active !== false },
@@ -149,23 +160,22 @@
     }
 
     function beatCols(o) {
-        return 'id,title,bpm,musical_key,tags,note,cover_url,preview_url,created_at,' +
-            'producers(id,name,handle,photo_url' + (o.slug ? ',slug,bio,active' : '') + '),genres(id,name,color,sort)' +
-            (o.type ? ',type_artists' : '');
+        return 'id,type,title,price,cover_url,preview_url,tags,created_at,' +
+            'producers(id,name,handle,photo_url' + (o.slug ? ',slug,bio,active' : '') + '),genres(id,name,color,sort),' +
+            'product_beats(bpm,musical_key,type_artists,note)';
     }
 
     function fetchBeats(cols) {
-        var q = db.from('beats').select(cols).eq('published', true);
+        var q = db.from('products').select(cols).eq('published', true).in('type', CATALOG_TYPES);
         if (PRODUCER) q = q.eq('producer_id', PRODUCER.id);
         return q.order('created_at', { ascending: false });
     }
 
-    // Se o banco ainda nao recebeu a migracao 02 (type_artists) ou a 03 (slug, bio), tenta de novo sem essas colunas.
+    // Se o banco ainda nao recebeu a migracao 03 (slug, bio), tenta de novo sem essas colunas.
     function fetchBeatsSafe(o) {
         return fetchBeats(beatCols(o)).then(function (res) {
             var m = (res.error && res.error.message) || '';
-            if (o.type && /type_artists/.test(m)) return fetchBeatsSafe({ slug: o.slug, type: false });
-            if (o.slug && /slug|bio|active/.test(m)) return fetchBeatsSafe({ slug: false, type: o.type });
+            if (o.slug && /slug|bio|active/.test(m)) return fetchBeatsSafe({ slug: false });
             return res;
         });
     }
@@ -185,7 +195,7 @@
         var ready = (PRODUCER_SLUG && !PRODUCER) ? loadProducer() : Promise.resolve(true);
         ready.then(function (found) {
             if (!found) return;
-            return fetchBeatsSafe({ slug: true, type: true })
+            return fetchBeatsSafe({ slug: true })
                 .then(function (res) {
                     if (res.error) throw res.error;
                     BEATS = (res.data || []).map(normalize);
@@ -274,7 +284,8 @@
     }
 
     function matchesFilter(b) {
-        return (!filter.genre || b.genre.id === filter.genre) &&
+        return (!filter.type || b.type === filter.type) &&
+               (!filter.genre || b.genre.id === filter.genre) &&
                (!filter.producer || b.producer.id === filter.producer);
     }
 
@@ -295,6 +306,7 @@
             var u = new URL(window.location.href);
             if (filter.q) u.searchParams.set('q', filter.q); else u.searchParams.delete('q');
             u.searchParams.delete('beat');
+            u.searchParams.delete('produto');
             window.history.replaceState(null, '', u.pathname + u.search + u.hash);
         } catch (e) { /* sem URL, tudo bem */ }
     }
@@ -401,9 +413,30 @@
         bar.hidden = false;
     }
 
+    // abas por tipo de produto: so aparecem quando ha mais de um tipo publicado
+    function renderTypeTabs() {
+        var box = $('typeTabs');
+        if (!box) return;
+        var order = [], counts = {};
+        BEATS.forEach(function (b) {
+            if (!counts[b.type]) { counts[b.type] = 0; order.push(b.type); }
+            counts[b.type]++;
+        });
+        if (order.length < 2) { filter.type = null; box.hidden = true; box.innerHTML = ''; return; }
+        var labels = CFG.PRODUCT_TYPES || {};
+        box.hidden = false;
+        box.innerHTML =
+            '<button class="chip chip-all' + (!filter.type ? ' active' : '') + '" data-filter-type="">Tudo <span>' + BEATS.length + '</span></button>' +
+            order.map(function (t) {
+                return '<button class="chip' + (filter.type === t ? ' active' : '') + '" data-filter-type="' + esc(t) + '">' +
+                    esc(labels[t] || t) + ' <span>' + counts[t] + '</span></button>';
+            }).join('');
+    }
+
     function renderControls() {
         if (PRODUCER_SLUG) return;      // a pagina do produtor nao tem filtros
         renderProducerBar();
+        renderTypeTabs();
         var genres = {}, producers = {}, gList = [], pList = [];
 
         BEATS.forEach(function (b) {
@@ -558,7 +591,7 @@
     var emptyTimer = null, lastEmptyTerm = '';
     function trackEmptySearch() {
         var q = filter.q;
-        if (!q || filter.genre || filter.producer || current.length) return;
+        if (!q || filter.type || filter.genre || filter.producer || current.length) return;
         emptyTimer = setTimeout(function () {
             var t = String(q).toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 60);
             if (!t || t === lastEmptyTerm) return;
@@ -590,7 +623,7 @@
 
         if (!current.length) {
             $('sentinel').hidden = true;
-            var hasFilters = filter.q || filter.genre || filter.producer;
+            var hasFilters = filter.q || filter.type || filter.genre || filter.producer;
             var ask = filter.q
                 ? '<a class="state-link" target="_blank" rel="noopener" href="https://wa.me/' + CFG.WHATSAPP + '?text=' +
                     encodeURIComponent('Salve! Procurei "' + filter.q + '" no Wav Lab e não achei. Vocês fazem um beat nesse estilo?') +
@@ -720,15 +753,22 @@
         if (!db || !currentBeat) return;
         track('checkout', { beat: currentBeat.id, license: selectedLicense.id });
         try {
+            // colunas antigas (continuam preenchidas) + colunas do catalogo + texto exato dos termos
             var row = {
-                beat_id: currentBeat.id,
+                beat_id: currentBeat.type === 'beat' ? currentBeat.id : null,
                 beat_title: currentBeat.title,
                 license_id: selectedLicense.id,
                 price: selectedLicense.price
             };
-            var full = Object.assign({}, row, { terms_snapshot: termsSnapshot() });
+            var full = Object.assign({}, row, {
+                terms_snapshot: termsSnapshot(),
+                product_id: currentBeat.id,
+                product_type: currentBeat.type,
+                product_title: currentBeat.title,
+                option_id: selectedLicense.id
+            });
             db.from('orders').insert(full).then(function (r) {
-                // banco sem a migracao 02: salva o pedido sem o texto dos termos
+                // banco sem o catalogo (migracao 001): salva o pedido no formato antigo
                 if (r && r.error) return db.from('orders').insert(row);
             }).then(function () {}, function () {});
         } catch (err) { /* nunca atrapalha a compra */ }
@@ -958,6 +998,9 @@
             return;
         }
 
+        var ft = e.target.closest('[data-filter-type]');
+        if (ft) { filter.type = ft.getAttribute('data-filter-type') || null; renderControls(); renderBeats(); return; }
+
         var fg = e.target.closest('[data-filter-genre]');
         if (fg) { filter.genre = fg.getAttribute('data-filter-genre') || null; renderControls(); renderBeats(); return; }
 
@@ -971,7 +1014,7 @@
         }
 
         if (e.target.closest('[data-clear-filters]')) {
-            filter.genre = null; filter.producer = null;
+            filter.type = null; filter.genre = null; filter.producer = null;
             renderControls();
             setQuery('');
             return;
